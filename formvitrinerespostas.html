@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Responder Formulário</title>
+<style>
+:root {
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --bg: #f8fafc;
+  --bg-elev: #ffffff;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
+  --success: #10b981;
+  --error: #ef4444;
+  --radius: 12px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+.container { max-width: 600px; margin: 0 auto; padding: 20px; }
+
+.card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+}
+
+.btn {
+  border: none;
+  background: var(--bg);
+  color: var(--text);
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+}
+.btn-primary { background: var(--primary); color: white; border-color: var(--primary); }
+.btn-primary:hover { background: var(--primary-hover); }
+
+.form-group { margin-bottom: 20px; }
+.label { display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px; }
+.input, .textarea, .select {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 16px;
+  font-family: inherit;
+}
+
+.radio-group, .checkbox-group { display: flex; flex-direction: column; gap: 12px; }
+.radio-option, .checkbox-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.radio-option:hover, .checkbox-option:hover { background: var(--bg); border-color: var(--primary); }
+
+.banner-preview { width: 100%; aspect-ratio: 16/9; border-radius: var(--radius); overflow: hidden; margin-bottom: 20px; background: var(--bg); }
+.banner-preview img { width: 100%; height: 100%; object-fit: cover; }
+
+.hidden { display: none; }
+
+.thankyou-screen {
+  text-align: center;
+  padding: 40px 20px;
+  min-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 24px;
+}
+.thankyou-icon { font-size: 80px; }
+.thankyou-title { font-size: 28px; font-weight: 800; color: var(--primary); }
+.thankyou-message { color: var(--text-muted); }
+.thankyou-buttons { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+.thankyou-buttons .btn { width: auto; }
+
+.toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 2000; }
+.toast { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; margin-top: 8px; display: flex; align-items: center; gap: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); animation: slideIn 0.3s ease; }
+@keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+.loading { text-align: center; padding: 60px; }
+
+/* Spinner */
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 0.6s linear infinite;
+  margin-right: 8px;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div id="content"></div>
+</div>
+
+<div id="toast-container" class="toast-container"></div>
+
+<script>
+// ==================== CONFIGURAÇÃO ====================
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbz9WtuMVBlqzqFeI9pGBB0OJoltqbEM_7VXRZcol-BbRJVuUpQSJ_XC5u6VMX9B10b-ig/exec';
+
+// ==================== FUNÇÕES ====================
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2, 8);
+}
+
+function showToast(msg, type = 'success') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = `<span>${type === 'success' ? '✅' : '❌'}</span><span>${msg}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function createConfetti() {
+  for (let i = 0; i < 50; i++) {
+    setTimeout(() => {
+      const c = document.createElement('div');
+      c.style.position = 'fixed';
+      c.style.width = '10px';
+      c.style.height = '10px';
+      c.style.background = '#4f46e5';
+      c.style.left = Math.random() * 100 + '%';
+      c.style.top = '-10px';
+      c.style.borderRadius = '50%';
+      c.style.pointerEvents = 'none';
+      c.style.zIndex = '3000';
+      c.style.animation = `fall ${1 + Math.random() * 2}s linear forwards`;
+      document.body.appendChild(c);
+      setTimeout(() => c.remove(), 3000);
+    }, i * 30);
+  }
+}
+
+// Função para atualizar contador de caracteres
+function atualizarContador(id) {
+    const textarea = document.getElementById(id);
+    const contador = document.getElementById('contador_' + id);
+    if (textarea && contador) {
+        contador.textContent = textarea.value.length;
+    }
+}
+
+// ==================== FEEDBACK VISUAL ====================
+function mostrarLoadingBotao(botao, texto) {
+    if (!botao) return;
+    botao.disabled = true;
+    const originalHtml = botao.innerHTML;
+    botao.setAttribute('data-original', originalHtml);
+    botao.innerHTML = `<span class="spinner"></span> ${texto}`;
+}
+
+function pararLoadingBotao(botao) {
+    if (!botao) return;
+    botao.disabled = false;
+    const original = botao.getAttribute('data-original');
+    if (original) botao.innerHTML = original;
+}
+
+function mostrarToastInfo(msg) {
+    showToast(msg, 'info');
+}
+
+// Adiciona animação de confetti
+const style = document.createElement('style');
+style.textContent = `@keyframes fall { to { transform: translateY(100vh) rotate(720deg); opacity: 0; } }`;
+document.head.appendChild(style);
+
+// ==================== BUSCAR FORMULÁRIO ====================
+async function buscarFormulario(formId) {
+  try {
+    const url = `${SHEETS_URL}?acao=buscarUm&aba=forms&id=${encodeURIComponent(formId)}`;
+    console.log('🔍 Buscando:', url);
+    const response = await fetch(url);
+    const result = await response.json();
+    console.log('📦 Resposta:', result);
+    
+    if (result.status === 'sucesso' && result.dados) {
+      return result.dados;
+    }
+    return null;
+  } catch (e) {
+    console.error('Erro:', e);
+    return null;
+  }
+}
+
+// ==================== SALVAR RESPOSTA ====================
+async function salvarResposta(formId, nomeFormulario, perguntas, respostas) {
+    try {
+        // Prepara os cabeçalhos (incluindo Data/Hora)
+        const cabecalhos = JSON.stringify(['Data/Hora', ...perguntas.map(q => q.title)]);
+        
+        // Prepara as respostas na ordem das perguntas
+        const respostasOrdenadas = perguntas.map(q => {
+            let valor = respostas[q.id];  // USAR O ID DA PERGUNTA
+            if (Array.isArray(valor)) valor = valor.join(', ');
+            console.log(`📝 Pergunta: ${q.title}, Valor: ${valor}`);
+            return valor || '';
+        });
+        
+        // Adiciona data/hora no início
+        const dadosCompletos = JSON.stringify([new Date().toLocaleString(), ...respostasOrdenadas]);
+        
+        console.log('📤 Enviando para Sheets:', {
+            nomeFormulario,
+            cabecalhos,
+            dadosCompletos
+        });
+        
+        const url = `${SHEETS_URL}?acao=salvarResposta&nomeFormulario=${encodeURIComponent(nomeFormulario)}&cabecalhos=${encodeURIComponent(cabecalhos)}&dados=${encodeURIComponent(dadosCompletos)}`;
+        
+        const response = await fetch(url);
+        const result = await response.json();
+        console.log('✅ Resultado do salvamento:', result);
+        
+        return result.status === 'sucesso';
+    } catch (e) {
+        console.error('❌ Erro ao salvar resposta:', e);
+        return false;
+    }
+}
+
+// ==================== RENDERIZAR FORMULÁRIO ====================
+function renderizarFormulario(form) {
+  const f = form.form;
+  const container = document.getElementById('content');
+  
+container.innerHTML = `
+    <div class="card">
+      ${f.banner ? `<div class="banner-preview"><img src="${f.banner}" alt="Banner"></div>` : ''}
+      
+      <div style="text-align: center; margin-bottom: 24px;">
+        <h2 style="font-size: 28px; font-weight: 700; background: linear-gradient(135deg, var(--primary), #8b5cf6); -webkit-background-clip: text; background-clip: text; color: transparent; margin-bottom: 12px;">
+          ${escapeHtml(f.title || form.name)}
+        </h2>
+        ${f.subtitle ? `<p style="color: var(--text-muted); font-size: 16px; margin-bottom: 8px;">${escapeHtml(f.subtitle)}</p>` : ''}
+        ${f.description ? `<div style="background: var(--bg); padding: 16px; border-radius: 12px; border-left: 4px solid var(--primary); text-align: left; margin-top: 16px; font-size: 14px; color: var(--text-muted);">
+          <span style="font-weight: 600;">ℹ️ Sobre este formulário</span><br>
+          ${escapeHtml(f.description)}
+        </div>` : ''}
+      </div>
+      
+      <form id="resposta-form" onsubmit="return false;">
+        <div id="perguntas-container"></div>
+        <button type="button" class="btn btn-primary" onclick="enviarResposta('${form.id}')">
+          📤 Enviar resposta
+        </button>
+      </form>
+      
+      ${f.footer ? `<div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); text-align: center; font-size: 12px; color: var(--text-muted);">${escapeHtml(f.footer)}</div>` : ''}
+    </div>
+  `;
+  
+  renderizarPerguntas(form);
+}
+
+function renderizarPerguntas(form) {
+  const container = document.getElementById('perguntas-container');
+  const questions = form.form.questions || [];
+  
+  container.innerHTML = questions.map((q, idx) => `
+    <div class="form-group" data-qid="${q.id}" data-condition='${JSON.stringify(q.condition || null)}'>
+      <label class="label">${escapeHtml(q.title)}${q.required ? '<span style="color: var(--error); margin-left: 4px;">*</span>' : ''}</label>
+      ${renderizarInput(q, idx)}
+    </div>
+  `.replace(/&quot;/g, '"')).join('');
+  
+  // Aplicar condições após renderizar
+  aplicarCondicoes(form);
+}
+
+function renderizarInput(q, idx) {
+  const name = `resp_${q.id}`;
+  const id = `campo_${q.id}`;
+  
+  switch(q.type) {
+    case 'text': return `<input type="text" class="input" name="${name}" id="${id}" style="width:100%; padding: 14px; font-size: 16px;">`;
+    case 'email': return `<input type="email" class="input" name="${name}" id="${id}" style="width:100%; padding: 14px; font-size: 16px;">`;
+    case 'number': return `<input type="number" class="input" name="${name}" id="${id}" style="width:100%; padding: 14px; font-size: 16px;">`;
+case 'textarea': return `
+    <textarea class="textarea" name="${name}" id="${id}" maxlength="2000" style="width:100%; padding: 14px; font-size: 16px; min-height: 100px;" placeholder="Digite aqui..."></textarea>
+    <div style="font-size: 11px; color: var(--text-muted); text-align: right; margin-top: 4px;">
+        🔤 Limite: 2000 caracteres
+    </div>
+`;
+    case 'radio': return `<div class="radio-group" id="${id}">${(q.options||[]).map(opt => `
+      <label class="radio-option" style="display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; cursor: pointer;">
+        <input type="radio" name="${name}" value="${escapeHtml(opt)}"> 
+        <span>${escapeHtml(opt)}</span>
+      </label>
+    `).join('')}</div>`;
+    case 'checkbox': return `<div class="checkbox-group" id="${id}">${(q.options||[]).map(opt => `
+      <label class="checkbox-option" style="display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; cursor: pointer;">
+        <input type="checkbox" name="${name}" value="${escapeHtml(opt)}"> 
+        <span>${escapeHtml(opt)}</span>
+      </label>
+    `).join('')}</div>`;
+    case 'select': return `<select class="select" name="${name}" id="${id}" style="width:100%; padding: 14px;">
+      <option value="">Selecione...</option>
+      ${(q.options||[]).map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
+    </select>`;
+    case 'scale': return `<div style="display: flex; gap: 8px; flex-wrap: wrap;" id="${id}">${[1,2,3,4,5].map(n => `
+      <label style="flex: 1; text-align: center; padding: 12px; background: var(--bg); border-radius: 10px; border: 1px solid var(--border); cursor: pointer;">
+        <input type="radio" name="${name}" value="${n}" style="display: none;"> ${n}
+      </label>
+    `).join('')}</div>`;
+    case 'date': return `<input type="date" class="input" name="${name}" id="${id}" style="width:100%; padding: 14px;">`;
+    case 'time': return `<input type="time" class="input" name="${name}" id="${id}" style="width:100%; padding: 14px;">`;
+    case 'attachment': return `
+        <div class="attachment-container">
+            <input type="file" class="input" name="${name}" id="${id}" 
+                   accept=".pdf,.jpg,.jpeg,.png" 
+                   style="padding: 14px; font-size: 16px;">
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 8px; padding: 8px; background: var(--bg); border-radius: 8px;">
+                📦 Limite: 10MB<br>
+                📄 Formatos: PDF, JPG, JPEG, PNG<br>
+                📧 Para arquivos maiores, envie para: documentos@empresa.com
+            </div>
+        </div>
+    `;
+    default: return `<input type="text" class="input" name="${name}" id="${id}" style="width:100%; padding: 14px;">`;
+  }
+}
+
+function aplicarCondicoes(form) {
+  const formEl = document.getElementById('resposta-form');
+  if (!formEl) return;
+  
+  function atualizarVisibilidade() {
+    const respostas = {};
+    formEl.querySelectorAll('input, select, textarea').forEach(inp => {
+      if (inp.name && inp.name.startsWith('resp_')) {
+        const qid = inp.name.replace('resp_', '');
+        if (inp.type === 'radio' && inp.checked) respostas[qid] = inp.value;
+        else if (inp.type === 'checkbox') {
+          if (!respostas[qid]) respostas[qid] = [];
+          if (inp.checked) respostas[qid].push(inp.value);
+        } else if (inp.type !== 'radio') {
+          respostas[qid] = inp.value;
+        }
+      }
+    });
+    
+    const perguntas = form.form.questions || [];
+    perguntas.forEach(q => {
+      const div = document.querySelector(`.form-group[data-qid="${q.id}"]`);
+      if (!div) return;
+      
+      let mostrar = false;
+      
+      if (!q.condition || !q.condition.dependsOn) {
+        mostrar = true;
+      } else {
+        const valorDependencia = respostas[q.condition.dependsOn];
+        
+        if (valorDependencia) {
+          const expectedValue = q.condition.expectedValue;
+          const valoresEsperados = expectedValue.split(',').map(v => v.trim());
+          
+          if (Array.isArray(valorDependencia)) {
+            mostrar = valorDependencia.some(valor => valoresEsperados.includes(String(valor)));
+          } else {
+            mostrar = valoresEsperados.includes(String(valorDependencia));
+          }
+        }
+      }
+      
+      div.style.display = mostrar ? 'block' : 'none';
+      
+      if (!mostrar) {
+        const inputs = div.querySelectorAll('input, select, textarea');
+        inputs.forEach(inp => {
+          if (inp.type === 'radio' || inp.type === 'checkbox') {
+            inp.checked = false;
+          } else {
+            inp.value = '';
+          }
+        });
+      }
+    });
+  }
+  
+  formEl.querySelectorAll('input, select, textarea').forEach(inp => {
+    inp.removeEventListener('change', atualizarVisibilidade);
+    inp.removeEventListener('input', atualizarVisibilidade);
+    inp.addEventListener('change', atualizarVisibilidade);
+    inp.addEventListener('input', atualizarVisibilidade);
+  });
+  
+  atualizarVisibilidade();
+}
+
+// ==================== ENVIAR RESPOSTA ====================
+// ==================== ENVIAR RESPOSTA ====================
+async function enviarResposta(formId) {
+    const event = window.event;
+    const btn = event.currentTarget;
+    const textoOriginal = btn.innerHTML;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Enviando...';
+    
+    try {
+        const form = await buscarFormulario(formId);
+        if (!form) {
+            showToast('Erro ao carregar formulário', 'error');
+            return;
+        }
+        
+        const formEl = document.getElementById('resposta-form');
+        const fd = new FormData(formEl);
+        const resposta = { 
+            id: generateId(), 
+            timestamp: new Date().toISOString(), 
+            data: {},
+            anexos: []
+        };
+        let temErro = false;
+        
+        const perguntasVisiveis = [];
+        document.querySelectorAll('.form-group').forEach(div => {
+            if (div.style.display !== 'none') {
+                const qid = div.getAttribute('data-qid');
+                const pergunta = form.form.questions.find(q => q.id === qid);
+                if (pergunta) perguntasVisiveis.push(pergunta);
+            }
+        });
+        
+        for (const q of perguntasVisiveis) {
+            const name = `resp_${q.id}`;
+            
+            // TRATAMENTO ESPECIAL PARA ANEXO
+            if (q.type === 'attachment') {
+                const fileInput = document.getElementById(`campo_${q.id}`);
+                const file = fileInput?.files[0];
+                
+                if (q.required && !file) {
+                    showToast(`Por favor, anexe o arquivo: ${q.title}`, 'error');
+                    temErro = true;
+                    break;
+                }
+                
+                if (file) {
+                    // Validar tamanho (10MB padrão)
+                    const maxSize = 10 * 1024 * 1024;
+                    if (file.size > maxSize) {
+                        showToast(`❌ Arquivo muito grande (${(file.size / 1024 / 1024).toFixed(2)}MB). Limite: 10MB. Envie para: documentos@empresa.com`, 'error');
+                        temErro = true;
+                        break;
+                    }
+                    
+                    // Validar tipo
+                    const allowedTypes = ['pdf', 'jpg', 'jpeg', 'png'];
+                    const fileExt = file.name.split('.').pop().toLowerCase();
+                    if (!allowedTypes.includes(fileExt)) {
+                        showToast(`❌ Formato não permitido: ${fileExt}. Use: PDF, JPG, JPEG, PNG`, 'error');
+                        temErro = true;
+                        break;
+                    }
+                    
+                    // Converter para Base64
+                    const base64 = await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(e.target.result.split(',')[1]);
+                        reader.readAsDataURL(file);
+                    });
+                    
+                    resposta.anexos.push({
+                        nome: file.name,
+                        tipo: file.type,
+                        tamanho: file.size,
+                        base64: base64,
+                        perguntaTitulo: q.title
+                    });
+                    
+                    resposta.data[q.id] = `📎 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`;
+                } else {
+                    resposta.data[q.id] = '(nenhum arquivo enviado)';
+                }
+            } else {
+                let valor = q.type === 'checkbox' ? fd.getAll(name) : fd.get(name);
+                if (q.required && (!valor || (Array.isArray(valor) && valor.length === 0))) {
+                    showToast(`Por favor, responda: ${q.title}`, 'error');
+                    temErro = true;
+                    break;
+                }
+                resposta.data[q.id] = valor || '';
+            }
+        }
+        
+        if (!temErro) {
+            console.log('📦 Resposta completa:', resposta);
+            console.log('📎 Anexos:', resposta.anexos);
+            
+            // Salvar no Sheets
+            const sucesso = await salvarResposta(form.id, form.name, form.form.questions, resposta.data);
+            
+            if (sucesso) {
+                // Enviar e-mail com anexos
+                await enviarEmailComAnexos(form.name, resposta, form.form.questions);
+                mostrarAgradecimento();
+                createConfetti();
+            } else {
+                showToast('Erro ao salvar resposta', 'error');
+            }
+        }
+        btn.disabled = false;
+        btn.innerHTML = textoOriginal;
+    } catch (erro) {
+        console.error('Erro:', erro);
+        showToast('Erro ao enviar resposta', 'error');
+        btn.disabled = false;
+        btn.innerHTML = textoOriginal;
+    }
+}
+
+function mostrarAgradecimento() {
+  const container = document.getElementById('content');
+  container.innerHTML = `
+    <div class="card thankyou-screen">
+      <div class="thankyou-icon">🎉</div>
+      <div class="thankyou-title">Resposta enviada!</div>
+      <div class="thankyou-message">Obrigado por participar da nossa pesquisa. Sua opinião é muito importante!</div>
+      <div class="thankyou-buttons">
+  	<button class="btn" onclick="recarregarFormulario()" id="btn-responder-novamente">📝 Responder novamente</button>
+  	<button class="btn btn-primary" onclick="fecharPagina()" id="btn-fechar">✕ Fechar</button>
+      </div>
+    </div>
+  `;
+}
+
+async function recarregarFormulario() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const formId = urlParams.get('id');
+  if (formId) {
+    document.getElementById('content').innerHTML = '<div class="loading">⏳ Carregando...</div>';
+    const form = await buscarFormulario(formId);
+    if (form) {
+      renderizarFormulario(form);
+    } else {
+      document.getElementById('content').innerHTML = '<div class="card" style="text-align:center;"><h3>Formulário não encontrado</h3></div>';
+    }
+  }
+}
+
+function fecharPagina() {
+  const btn = event.currentTarget;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Fechando...';
+  
+  setTimeout(() => {
+    window.close();
+    document.getElementById('content').innerHTML = `
+      <div class="card" style="text-align:center;">
+        <h3>Obrigado!</h3>
+        <p>Você pode fechar esta página.</p>
+      </div>
+    `;
+  }, 300);
+}
+
+// ==================== INICIALIZAR ====================
+async function init() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const formId = urlParams.get('id');
+  
+  if (!formId) {
+    document.getElementById('content').innerHTML = `
+      <div class="card" style="text-align:center;">
+        <h3>Link inválido</h3>
+        <p>Nenhum formulário especificado.</p>
+      </div>
+    `;
+    return;
+  }
+  
+  document.getElementById('content').innerHTML = '<div class="loading">⏳ Carregando formulário...</div>';
+  
+  const form = await buscarFormulario(formId);
+  
+  if (form) {
+    renderizarFormulario(form);
+  } else {
+    document.getElementById('content').innerHTML = `
+      <div class="card" style="text-align:center;">
+        <div style="font-size:48px;">🔍</div>
+        <h3>Formulário não encontrado</h3>
+        <p>O formulário que você procura não existe ou foi removido.</p>
+      </div>
+    `;
+  }
+}
+
+async function enviarEmailComAnexos(nomeFormulario, resposta, perguntas) {
+    try {
+        const url = `${SHEETS_URL}`;
+        
+        // Criar um objeto com perguntas e respostas
+        const perguntasRespostas = {};
+        for (const q of perguntas) {
+            const valor = resposta.data[q.id] || '';
+            perguntasRespostas[q.title] = valor;
+        }
+        
+        const body = new URLSearchParams();
+        body.append('acao', 'enviarEmailComAnexos');
+        body.append('nomeFormulario', nomeFormulario);
+        body.append('perguntasRespostas', JSON.stringify(perguntasRespostas));
+        body.append('anexos', JSON.stringify(resposta.anexos));
+        body.append('timestamp', resposta.timestamp);
+        
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: body.toString()
+        });
+        
+        const result = await response.json();
+        console.log('📧 Resultado do e-mail:', result);
+        
+    } catch (erro) {
+        console.error('❌ Erro ao enviar e-mail:', erro);
+    }
+}
+
+init();
+</script>
+</body>
+</html>
