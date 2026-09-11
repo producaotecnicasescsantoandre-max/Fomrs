@@ -537,10 +537,11 @@ body {
         </div>
       </div>
 
-      <div class="tabs" style="display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 24px;">
-        <button class="tab active" onclick="showEditorTab('perguntas')">📝 Perguntas</button>
-        <button class="tab" onclick="showEditorTab('criativos')">🎨 Aparência</button>
-      </div>
+<div class="tabs" style="display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 24px;">
+  <button class="tab active" onclick="showEditorTab('perguntas')">📝 Perguntas</button>
+  <button class="tab" onclick="showEditorTab('criativos')">🎨 Aparência</button>
+  <button class="tab" onclick="showEditorTab('arvore')">🌳 Visualização</button>
+</div>
 
       <!-- Tab Perguntas -->
       <div id="editor-perguntas" class="editor-tab">
@@ -677,6 +678,41 @@ body {
   <textarea class="textarea" id="form-attachment-message" rows="2" placeholder="Para arquivos maiores, entre em contato..."></textarea>
 </div>
 
+<!-- NOVA SEÇÃO: SETORES E E-MAIS -->
+<h3 style="margin: 24px 0 16px;">🏢 Setores e E-mails Responsáveis</h3>
+
+<div style="background: var(--bg-elev-2); padding: 16px; border-radius: 12px; margin-bottom: 20px;">
+  <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+    📌 Configure os setores que aparecerão na pergunta "Qual seu setor?".<br>
+    💡 O respondente poderá escolher <strong>vários setores</strong>, e cada um receberá o e-mail com as respostas.
+  </p>
+
+  <div class="form-group">
+    <label class="label">🔢 Máximo de setores que o respondente pode escolher</label>
+    <input type="number" class="input" id="form-max-setores" value="0" min="0" max="20" style="width: 100px;">
+    <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+      💡 0 = sem limite | 1 = só um setor | 3 = até três setores
+    </div>
+  </div>
+
+  <div id="setores-container" style="margin-top: 16px;">
+    <!-- Os setores serão preenchidos dinamicamente pelo JavaScript -->
+  </div>
+
+  <div style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;">
+    <button class="btn btn-sm" onclick="adicionarSetor()" style="flex: 1; justify-content: center;">
+      ➕ Adicionar setor
+    </button>
+    <button class="btn btn-sm btn-danger" onclick="removerTodosSetores()" style="flex: 1; justify-content: center;">
+      🗑️ Remover todos
+    </button>
+  </div>
+
+  <button class="btn btn-primary" onclick="salvarSetoresConfig()" style="margin-top: 12px; width: 100%; justify-content: center;">
+    💾 Salvar configuração de setores
+  </button>
+</div>
+
           <h3 style="margin: 24px 0 16px;">🎨 Cores</h3>
           <div class="color-palette">
             <div class="palette-btn" style="background:#4f46e5" onclick="applyPalette('#4f46e5')"></div>
@@ -691,7 +727,32 @@ body {
           </div>
         </div>
       </div>
-    </div>
+      <!-- Tab Visualização em Árvore -->
+      <div id="editor-arvore" class="editor-tab hidden">
+        <div class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+            <h3 style="margin: 0;">🌳 Estrutura do Formulário</h3>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-sm" onclick="organizarBlocosPorCondicao()" title="Organizar perguntas por blocos">📐 Organizar</button>
+              <button class="btn btn-sm" id="btn-desfazer-arvore" onclick="desfazerMovimentoArvore()" disabled style="opacity:0.5;">↩️ Desfazer</button>
+              <button class="btn btn-sm" onclick="fecharEditorTabArvore()" title="Fechar">✕</button>
+            </div>
+          </div>
+          <div class="alert alert-info" style="margin-bottom: 20px; font-size: 13px;">
+            💡 <strong>Como usar:</strong><br>
+            • Arraste o ícone ⋮⋮ para reorganizar perguntas ou blocos<br>
+            • Arraste uma pergunta para outro bloco para mudar sua condição<br>
+            • O sistema pergunta antes de mover entre blocos<br>
+            • Use o botão "Desfazer" se algo der errado
+          </div>
+          <div id="arvore-visualizacao" style="min-height: 400px; max-height: 600px; overflow-y: auto; padding: 16px; background: var(--bg); border-radius: 12px;">
+            <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+              ⏳ Carregando estrutura...
+            </div>
+          </div>
+        </div>
+      </div>    
+</div>
 
     <!-- RESPOSTAS -->
     <div id="view-responses" class="view hidden">
@@ -983,7 +1044,7 @@ async function debugRespostas() {
 
 // ==================== ESTADO ====================
 const STORAGE_KEY = 'formcraft_v1';
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwkHhvaVhUjZ5iB4A7qZK8k7RlviB7e95bC7nfuHlphqBDBIJSqohN8-WJGX_A9G6RD/exec';
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbz9WtuMVBlqzqFeI9pGBB0OJoltqbEM_7VXRZcol-BbRJVuUpQSJ_XC5u6VMX9B10b-ig/exec';
 
 // CONFIGURAÇÃO
 const CONFIG = {
@@ -1026,6 +1087,35 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function formatarInformativo(texto) {
+    if (!texto) return '';
+    
+    // Escapar HTML para segurança, mas preservar a formatação que vamos adicionar
+    let textoEscapado = escapeHtml(texto);
+    
+    // Converter **texto** para <strong>texto</strong>
+    textoEscapado = textoEscapado.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // Converter *texto* para <em>texto</em>
+    textoEscapado = textoEscapado.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    
+    // Converter listas com marcadores - (hífen espaço)
+    textoEscapado = textoEscapado.replace(/^• (.*?)$/gm, '<li>$1</li>');
+    textoEscapado = textoEscapado.replace(/^- (.*?)$/gm, '<li>$1</li>');
+    
+    // Agrupar <li> em <ul>
+    if (textoEscapado.includes('<li>')) {
+        textoEscapado = textoEscapado.replace(/<li>.*?<\/li>/gs, (match) => {
+            return `<ul style="margin: 10px 0 10px 20px; list-style-type: disc;">${match}</ul>`;
+        });
+    }
+    
+    // Converter quebras de linha para <br>
+    textoEscapado = textoEscapado.replace(/\n/g, '<br>');
+    
+    return textoEscapado;
 }
 
 function closeModal(e) {
@@ -1079,12 +1169,17 @@ function mostrarToastInfo(msg) {
 }
 
 function goToHome() {
+    // Primeiro, resetar a aba para "Perguntas" ANTES de esconder o editor
+    if (currentFormId) {
+        showEditorTab('perguntas');
+    }
+    
     document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
     document.getElementById('view-home').classList.remove('hidden');
     currentFormId = null;
     renderFormsList();
     
-    // Restaura header e bottom sheet (caso estava no modo público)
+    // Restaura header e bottom sheet
     document.querySelector('.header').style.display = '';
     document.querySelector('.bottom-sheet').style.display = '';
     
@@ -1093,8 +1188,19 @@ function goToHome() {
 }
 
 function showEditorTab(tab) {
+    // Esconde todas as abas
     document.querySelectorAll('.editor-tab').forEach(t => t.classList.add('hidden'));
-    document.getElementById(`editor-${tab}`).classList.remove('hidden');
+    
+    // Mostra a aba solicitada
+    const abaSelecionada = document.getElementById(`editor-${tab}`);
+    if (abaSelecionada) {
+        abaSelecionada.classList.remove('hidden');
+        
+        // Se for a aba "arvore", atualiza o conteúdo
+        if (tab === 'arvore') {
+            setTimeout(() => renderizarArvore(), 50);
+        }
+    }
 }
 
 // ==================== FUNÇÕES DE SINCRONIZAÇÃO ====================
@@ -1220,17 +1326,81 @@ async function salvarEmailConfiguracao(nomeFormulario, emails) {
 // ==================== FORMULÁRIOS ====================
 async function loadData() {
     const saved = localStorage.getItem(STORAGE_KEY);
+    let dadosLocais = { forms: [], currentFormId: null };
+    
     if (saved) {
         try {
             const parsed = JSON.parse(saved);
-            forms = parsed.forms || [];
-            currentFormId = parsed.currentFormId || null;
-        } catch(e) { forms = []; }
+            dadosLocais = parsed;
+        } catch(e) { 
+            dadosLocais = { forms: [], currentFormId: null };
+        }
     }
     
-    // Buscar da nuvem automaticamente
-    await buscarTudoDaNuvemSilencioso();
+    // 🔥 NÃO carregar do localStorage primeiro - vamos usar a nuvem como fonte principal
+    forms = [];
+    currentFormId = null;
     
+    mostrarProgresso('☁️ Carregando dados da nuvem...');
+    atualizarProgresso(10, 'Conectando ao Google Sheets...');
+    
+    try {
+        const formsNuvem = await carregarTudoDaNuvem('forms');
+        
+        atualizarProgresso(50, `${formsNuvem.length} formulários encontrados`);
+        
+        if (formsNuvem && formsNuvem.length > 0) {
+            // 🔥 NUVEM É A FONTE PRINCIPAL - substitui tudo
+            forms = formsNuvem;
+            
+            // 🔥 Merge inteligente: preservar respostas locais que não estão na nuvem
+            const formsLocais = dadosLocais.forms || [];
+            for (const formCloud of forms) {
+                const formLocal = formsLocais.find(f => f.id === formCloud.id);
+                if (formLocal && formLocal.responses && formLocal.responses.length > 0) {
+                    const respostasNuvem = formCloud.responses || [];
+                    // Se tem mais respostas locais, mantém elas
+                    if (formLocal.responses.length > respostasNuvem.length) {
+                        formCloud.responses = formLocal.responses;
+                    }
+                }
+            }
+            
+            atualizarProgresso(70, 'Atualizando formulários...');
+            
+            // Carregar respostas atualizadas de cada formulário
+            atualizarProgresso(80, 'Carregando respostas...');
+            for (const form of forms) {
+                try {
+                    const respostas = await carregarRespostasDaNuvem(form.name);
+                    if (respostas && respostas.length > 0) {
+                        // Só substitui se a nuvem tiver mais respostas
+                        if (respostas.length >= (form.responses || []).length) {
+                            form.responses = respostas;
+                        }
+                    }
+                } catch(e) {
+                    console.error('Erro ao carregar respostas de', form.name, e);
+                    if (!form.responses) form.responses = [];
+                }
+            }
+            
+            saveData();
+            atualizarProgresso(100, `✅ ${forms.length} formulários carregados!`);
+        } else {
+            // Se não tem nada na nuvem, usa o localStorage como fallback
+            forms = dadosLocais.forms || [];
+            atualizarProgresso(100, 'ℹ️ Nenhum formulário na nuvem. Usando dados locais.');
+        }
+    } catch (erro) {
+        console.error('❌ Erro ao carregar da nuvem:', erro);
+        // Fallback para localStorage
+        forms = dadosLocais.forms || [];
+        atualizarProgresso(100, '⚠️ Erro de conexão. Usando dados locais.');
+        showToast('⚠️ Não foi possível conectar à nuvem', 'warning');
+    }
+    
+    setTimeout(() => fecharProgresso(), 1500);
     renderFormsList();
 }
 
@@ -1242,10 +1412,20 @@ async function buscarTudoDaNuvemSilencioso() {
             let mudancas = false;
             
             for (const formCloud of formsNuvem) {
-                const formLocal = forms.find(f => f.id === formCloud.id);
+                const indexLocal = forms.findIndex(f => f.id === formCloud.id);
                 
-                if (!formLocal) {
+                if (indexLocal === -1) {
+                    // Novo formulário
                     forms.push(formCloud);
+                    mudancas = true;
+                } else {
+                    // Atualizar existente (mantém respostas locais se forem mais numerosas)
+                    const respostasLocais = forms[indexLocal].responses || [];
+                    if (respostasLocais.length > (formCloud.responses || []).length) {
+                        forms[indexLocal] = { ...formCloud, responses: respostasLocais };
+                    } else {
+                        forms[indexLocal] = formCloud;
+                    }
                     mudancas = true;
                 }
             }
@@ -1300,6 +1480,9 @@ async function renderFormsList() {
 <div style="display:flex;gap:4px;">
     <button class="btn btn-sm" onclick="event.stopPropagation(); gerarNovoLink('${form.id}')" title="Gerar novo link">🔄</button>
     <button class="btn btn-sm" onclick="event.stopPropagation(); duplicateForm('${form.id}')" title="Duplicar">📋</button>
+    <button class="btn btn-sm" onclick="event.stopPropagation(); toggleLockForm('${form.id}')" title="${form.locked ? '🔒 Travei, só senha destrava' : '🔓 Clicar para travar'}">
+        ${form.locked ? '🔒' : '🔓'}
+    </button>
     <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); deleteForm('${form.id}')" title="Excluir">🗑️</button>
 </div>
             </div>
@@ -1328,6 +1511,12 @@ function openFormEditor(formId) {
     currentFormId = formId;
     const formData = forms.find(f => f.id === formId);
     if (!formData) return;
+    
+    // 🔥 LINHAS NOVAS (VERIFICA SE ESTÁ TRAVADO)
+    if (formData.locked) {
+        showToast("🔒 Este formulário está TRAVADO. Desbloqueie na tela inicial para editar.", "error");
+        return;
+    }
     document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
     document.getElementById('view-editor').classList.remove('hidden');
     document.getElementById('current-form-name').textContent = formData.name;
@@ -1348,6 +1537,11 @@ function openFormEditor(formId) {
     renderBannerPreviewFromUrl(f.banner);
     renderQuestionsList();
     renderLivePreview();
+    
+    // 🆕 CARREGAR SETORES
+    setTimeout(() => {
+        carregarSetoresConfig();
+    }, 100);
 }
 
 async function openResponsesView(formId) {
@@ -1398,8 +1592,9 @@ async function createFormWithTemplate(templateType) {
 
 const newForm = {
     id: generateId(),
-    name: name,           // ← use 'name' em vez de 'newName'
+    name: name,
     createdAt: new Date().toISOString(),
+    locked: false,  // ← ADICIONE ESTA LINHA
     form: {
         title: template.title,
         subtitle: template.subtitle || '',
@@ -1419,14 +1614,22 @@ const newForm = {
         
         // 🔥 CRIA PRIMEIRO A ABA NO SHEETS
         const cabecalhos = JSON.stringify(['Data/Hora']);
-        const urlAba = `${CONFIG.googleApiUrl}?acao=criarAba&nomeFormulario=${encodeURIComponent(name)}&cabecalhos=${encodeURIComponent(cabecalhos)}`;
+// 🔥 USA POST PARA SUPORTAR CABEÇALHOS GRANDES
+    try {
+        const bodyAba = new URLSearchParams();
+        bodyAba.append('acao', 'criarAba');
+        bodyAba.append('nomeFormulario', name);
+        bodyAba.append('cabecalhos', cabecalhos);
         
-        try {
-            await fetch(urlAba);
-            console.log(`✅ Aba criada: ${name}`);
-        } catch (erro) {
-            console.error('Erro ao criar aba:', erro);
-        }
+        await fetch(CONFIG.googleApiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: bodyAba.toString()
+        });
+        console.log(`✅ Aba criada: ${name}`);
+    } catch (erro) {
+        console.error('Erro ao criar aba:', erro);
+    }
         
         // 🔥 DEPOIS SALVA O FORMULÁRIO
         const sucesso = await salvarNaNuvem('forms', newForm.id, newForm);
@@ -1451,35 +1654,38 @@ function duplicateForm(formId) {
     const original = forms.find(f => f.id === formId);
     if (!original) return;
     
-    // Gerar nome único (evitar duplicatas)
     let newName = `${original.name} (cópia)`;
     let contador = 1;
     while (forms.some(f => f.name === newName)) {
         newName = `${original.name} (cópia ${contador++})`;
     }
     
-    // 🔥 GERAR NOVOS IDs PARA TUDO
     const novoId = generateId();
     const emailsImportados = original.form.emails || '';
     
-    // 🔥 RECONSTRUIR PERGUNTAS COM NOVOS IDs
+    // 🔥 RECONSTRUIR PERGUNTAS COM NOVOS IDs - AGORA COM TODOS OS CAMPOS
     const novasPerguntas = original.form.questions.map(q => ({
-        id: generateId(),  // NOVO ID para cada pergunta
+        id: generateId(),
         type: q.type || 'text',
         title: q.title || 'Nova pergunta',
         required: q.required || false,
         options: q.options || ['Opção 1', 'Opção 2'],
         condition: q.condition ? {
-            dependsOn: null,  // RESETAR dependência
+            dependsOn: null,
             expectedValue: q.condition.expectedValue
-        } : null
+        } : null,
+        // 🔥 CAMPOS QUE FALTAVAM
+        infoContent: q.infoContent || '',
+        maxSelections: q.maxSelections || 0,
+        linkedToSectors: q.linkedToSectors || false,
+        sectorIds: q.sectorIds || []
     }));
     
-    // 🔥 CRIAR FORMULÁRIO IGUAL AO NATIVO
     const newForm = {
         id: novoId,
         name: newName,
         createdAt: new Date().toISOString(),
+        locked: false,  // Cópia sempre destravada
         form: {
             title: original.form.title,
             subtitle: original.form.subtitle || '',
@@ -1491,20 +1697,29 @@ function duplicateForm(formId) {
             config: original.form.config || { showProgress: true },
             emails: emailsImportados,
             attachment: original.form.attachment ? { ...original.form.attachment } : { maxSize: 10, allowedTypes: 'pdf,jpg,jpeg,png', alternativeEmail: '', customMessage: '' },
+            // 🔥 CAMPOS QUE FALTAVAM
+            opcaoCores: original.form.opcaoCores ? { ...original.form.opcaoCores } : {},
+            setores: original.form.setores ? [...original.form.setores] : [],
+            maxSelecoes: original.form.maxSelecoes || 0
         },
-        responses: []  // ZERA AS RESPOSTAS
+        responses: []
     };
     
-    // Adicionar localmente
     forms.push(newForm);
     saveData();
     
-    // 🔥 NOVO: CRIAR A ABA NO SHEETS (igual ao createFormWithTemplate e confirmImport)
     const cabecalhos = JSON.stringify(['Data/Hora', ...novasPerguntas.map(q => q.title)]);
-    const urlCriarAba = `${CONFIG.googleApiUrl}?acao=criarAba&nomeFormulario=${encodeURIComponent(newName)}&cabecalhos=${encodeURIComponent(cabecalhos)}`;
-    
-    fetch(urlCriarAba)
-        .then(res => res.json())
+const bodyAba = new URLSearchParams();
+bodyAba.append('acao', 'criarAba');
+bodyAba.append('nomeFormulario', newName);
+bodyAba.append('cabecalhos', cabecalhos);
+
+fetch(CONFIG.googleApiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: bodyAba.toString()
+})
+    .then(res => res.json())
         .then(resultado => {
             console.log(`📊 Aba criada para "${newName}":`, resultado);
         })
@@ -1512,7 +1727,6 @@ function duplicateForm(formId) {
             console.error(`❌ Erro ao criar aba "${newName}":`, erro);
         });
     
-    // 🔥 NOVO: SALVAR NA NUVEM (aba 'forms')
     salvarNaNuvem('forms', newForm.id, newForm).then(sucesso => {
         if (sucesso) {
             console.log(`✅ Formulário "${newName}" salvo na nuvem!`);
@@ -1521,9 +1735,14 @@ function duplicateForm(formId) {
         }
     });
     
-    // 🔥 NOVO: SALVAR CONFIGURAÇÃO DE EMAILS
     if (emailsImportados) {
         salvarEmailConfiguracao(newName, emailsImportados);
+    }
+    
+    // Salvar setores na nuvem também
+    if (original.form.setores && original.form.setores.length > 0) {
+        const urlSetores = `${CONFIG.googleApiUrl}?acao=salvarSetores&nomeFormulario=${encodeURIComponent(newName)}&setores=${encodeURIComponent(JSON.stringify(original.form.setores))}&maxSelecoes=${original.form.maxSelecoes || 0}`;
+        fetch(urlSetores).catch(e => console.error('Erro ao salvar setores:', e));
     }
     
     renderFormsList();
@@ -1547,6 +1766,16 @@ async function excluirDaNuvem(aba, id) {
 }
 
 function deleteForm(formId) {
+    const form = forms.find(f => f.id === formId);
+    if (!form) return;
+    
+    // 🔥 LINHAS NOVAS (VERIFICA SE ESTÁ TRAVADO)
+    if (form.locked) {
+        showToast("🔒 Formulário TRAVADO. Desbloqueie na tela inicial para excluir.", "error");
+        return;
+    }
+    // 🔥 FIM DAS LINHAS NOVAS
+    
     confirmAction('Excluir', 'Excluir formulário? Todas as respostas serão perdidas.', async () => {
         mostrarProgresso('🗑️ Excluindo da nuvem...');
         atualizarProgresso(30, 'Removendo da planilha...');
@@ -1797,18 +2026,35 @@ function getTypeLabel(type) {
     return types[type] || type;
 }
 
-function addQuestion() {
+function addQuestion(questionId = null) {
     const formData = getCurrentForm();
     if (!formData) return;
     if (!formData.form.questions) formData.form.questions = [];
-    formData.form.questions.push({
+    
+    const novaPergunta = {
         id: generateId(),
         type: 'text',
         title: 'Nova pergunta',
         required: false,
         options: ['Opção 1', 'Opção 2'],
         condition: null
-    });
+    };
+    
+    // Se foi passado um questionId, insere logo após essa pergunta
+    if (questionId) {
+        const index = formData.form.questions.findIndex(q => q.id === questionId);
+        if (index !== -1) {
+            // Insere na posição seguinte à pergunta atual
+            formData.form.questions.splice(index + 1, 0, novaPergunta);
+        } else {
+            // Se não encontrou, adiciona no final
+            formData.form.questions.push(novaPergunta);
+        }
+    } else {
+        // Comportamento padrão: adiciona no final
+        formData.form.questions.push(novaPergunta);
+    }
+    
     saveData();
     renderQuestionsList();
     renderLivePreview();
@@ -1822,6 +2068,27 @@ function renderQuestionsList() {
     const formData = getCurrentForm();
     const container = document.getElementById('questions-list');
     const empty = document.getElementById('empty-questions');
+    
+    // Inicializar opcaoCores no formData se não existir
+    if (!formData.form.opcaoCores) {
+        formData.form.opcaoCores = {};
+    }
+    const opcaoCores = formData.form.opcaoCores;
+    
+    // Procurar a primeira pergunta de múltipla escolha (radio/select/checkbox)
+    const perguntaPrincipal = formData.form.questions.find(q => 
+        q.type === 'radio' || q.type === 'select' || q.type === 'checkbox'
+    );
+    
+    // Garantir que todas as opções tenham entrada no opcaoCores (cor padrão = cinza claro)
+    if (perguntaPrincipal && perguntaPrincipal.options) {
+        perguntaPrincipal.options.forEach(opt => {
+            if (!opcaoCores[opt]) {
+                opcaoCores[opt] = '#f1f5f9'; // cor padrão: cinza claro
+            }
+        });
+    }
+    
     if (!formData || !formData.form.questions || formData.form.questions.length === 0) {
         if (container) container.innerHTML = '';
         if (empty) empty.classList.remove('hidden');
@@ -1831,13 +2098,17 @@ function renderQuestionsList() {
     if (!container) return;
 
     container.innerHTML = formData.form.questions.map((q, idx) => `
-        <div class="question-item" data-question-id="${q.id}">
+        <div class="question-item" data-question-id="${q.id}" 
+             style="${q.condition && q.condition.dependsOn && opcaoCores[q.condition.expectedValue] 
+                 ? 'background: ' + opcaoCores[q.condition.expectedValue] + '; border-left: 4px solid ' + opcaoCores[q.condition.expectedValue] + ';' 
+                 : ''}">
             <div class="question-header">
                 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
                     <span class="drag-handle" draggable="true" data-question-id="${q.id}" title="Arrastar">⋮⋮</span>
                     <span class="badge">#${idx+1}</span>
                     <span class="badge">${getTypeLabel(q.type)}</span>
                     ${q.condition?.dependsOn ? '<span class="badge-warning">🔗 Condicionada</span>' : ''}
+                    ${q.linkedToSectors ? '<span class="badge" style="background: #dbeafe; color: #2563eb;">🔗 Setores</span>' : ''}
                 </div>
                 <div style="display:flex;gap:4px;">
                     <button class="btn btn-sm" onclick="openConditionModal('${q.id}')" style="background:none;" title="Condição">🔗</button>
@@ -1849,6 +2120,7 @@ function renderQuestionsList() {
             </div>
             <div class="form-group">
                 <select class="select" onchange="updateQuestion('${q.id}', 'type', this.value); renderQuestionsList();">
+                    <option value="info" ${q.type==='info' ? 'selected' : ''}>ℹ️ Informativo (leitura)</option>
                     <option value="text" ${q.type==='text' ? 'selected' : ''}>Texto</option>
                     <option value="textarea" ${q.type==='textarea' ? 'selected' : ''}>Texto longo</option>
                     <option value="email" ${q.type==='email' ? 'selected' : ''}>E-mail</option>
@@ -1859,21 +2131,72 @@ function renderQuestionsList() {
                     <option value="scale" ${q.type==='scale' ? 'selected' : ''}>Escala 1-5</option>
                     <option value="date" ${q.type==='date' ? 'selected' : ''}>📅 Data</option>
                     <option value="time" ${q.type==='time' ? 'selected' : ''}>⏰ Hora</option>
-		           <option value="attachment" ${q.type==='attachment' ? 'selected' : ''}>📎 Anexo (arquivo)</option>
+                    <option value="attachment" ${q.type==='attachment' ? 'selected' : ''}>📎 Anexo (arquivo)</option>
                 </select>
             </div>
-            ${['radio', 'checkbox', 'select'].includes(q.type) ? `
-                <div class="form-group">
-                    <label class="label">Opções</label>
-                    ${q.options.map((opt, i) => `
-                        <div class="option-row">
-                            <input type="text" class="input" value="${escapeHtml(opt)}" onchange="updateOption('${q.id}', ${i}, this.value)">
-                            <button class="btn btn-sm" onclick="deleteOption('${q.id}', ${i})" style="background:none;">✕</button>
-                        </div>
-                    `).join('')}
-                    <button class="btn btn-sm" onclick="addOption('${q.id}')">➕ Opção</button>
+            
+            ${q.type === 'info' ? `
+                <div class="form-group" style="background: var(--bg-elev-2); padding: 12px; border-radius: 10px; margin-top: 12px;">
+                    <label class="label">📝 Conteúdo do Informativo</label>
+                    <textarea class="textarea" rows="6" placeholder="Digite o texto informativo aqui..." onchange="updateQuestion('${q.id}', 'infoContent', this.value)">${escapeHtml(q.infoContent || '')}</textarea>
+                    <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+                        💡 Use ** para negrito, * para itálico.
+                    </div>
                 </div>
             ` : ''}
+            
+${(q.type === 'radio' || q.type === 'checkbox' || q.type === 'select') ? `
+    <div class="form-group">
+        <label class="label">Opções</label>
+        ${q.linkedToSectors ? `
+            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 8px;">
+                🔗 Opções vinculadas aos setores selecionados abaixo.
+            </div>
+        ` : `
+            ${q.options.map((opt, i) => `
+                <div class="option-row" style="display: flex; align-items: center; gap: 8px;">
+                    <input type="color" 
+                           value="${opcaoCores[opt] || '#f1f5f9'}" 
+                           onchange="mudarCorOpcao('${escapeHtml(opt)}', this.value)" 
+                           onclick="event.stopPropagation();"
+                           title="Clique para escolher a cor de '${escapeHtml(opt)}'"
+                           style="width: 28px; height: 28px; border: 2px solid var(--border); border-radius: 6px; cursor: pointer; padding: 0; flex-shrink: 0;">
+                    <input type="text" class="input" value="${escapeHtml(opt)}" onchange="updateOption('${q.id}', ${i}, this.value)" style="flex: 1;">
+                    <button class="btn btn-sm" onclick="deleteOption('${q.id}', ${i})" style="background:none;">✕</button>
+                </div>
+            `).join('')}
+            <button class="btn btn-sm" onclick="addOption('${q.id}')">➕ Opção</button>
+        `}
+    </div>
+    
+    ${q.type === 'checkbox' ? `
+        <div style="margin-top: 12px; padding: 12px; background: var(--bg-elev-2); border-radius: 10px; border: 1px solid var(--border);">
+            <label class="label" style="font-size: 13px;">🔢 Máximo de seleções</label>
+            <input type="number" class="input" value="${q.maxSelections || 0}" min="0" 
+                   style="width: 100px; padding: 6px 12px;"
+                   onchange="updateQuestion('${q.id}', 'maxSelections', this.value)">
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">0 = sem limite</div>
+        </div>
+    ` : ''}
+    
+    <div style="margin-top: 12px; padding: 12px; background: var(--bg-elev-2); border-radius: 10px; border: 1px solid var(--border);">
+        <label style="display: flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer;">
+            <input type="checkbox" ${q.linkedToSectors ? 'checked' : ''} 
+                   onchange="toggleSectorLink('${q.id}', this.checked)">
+            🔗 Vincular a setores
+        </label>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+            As opções serão preenchidas automaticamente com os setores configurados.
+        </div>
+        
+        <div id="sector-selector-${q.id}" style="${q.linkedToSectors ? '' : 'display: none;'} margin-top: 12px;">
+            <div style="font-weight: 600; margin-bottom: 8px; font-size: 13px;">📌 Selecione os setores que aparecerão:</div>
+            <div id="sector-options-${q.id}" style="display: flex; flex-direction: column; gap: 4px; max-height: 150px; overflow-y: auto; padding: 4px;">
+            </div>
+        </div>
+    </div>
+` : ''}
+            
             <label class="checkbox-option" style="margin-top:12px;">
                 <input type="checkbox" ${q.required ? 'checked' : ''} onchange="updateQuestion('${q.id}', 'required', this.checked)">
                 <span>Obrigatória</span>
@@ -1883,12 +2206,38 @@ function renderQuestionsList() {
                     🔗 Só aparece se a resposta for: <strong>${escapeHtml(q.condition.expectedValue)}</strong>
                 </div>
             ` : ''}
-            <button class="btn new-question-after-btn" onclick="addQuestion()" style="margin-top:16px;">
-                ➕ Nova pergunta
-            </button>
+<button class="btn new-question-after-btn" onclick="addQuestion('${q.id}')" style="margin-top:16px;">
+    ➕ Nova pergunta
+</button>
         </div>
     `).join('');
+    
+    // Renderizar os seletores de setores para cada pergunta vinculada
+    formData.form.questions.forEach(q => {
+        if (q.linkedToSectors) {
+            setTimeout(() => renderSectorSelector(q.id), 50);
+        }
+    });
+    
     setTimeout(() => setupDragAndDrop(), 50);
+}
+
+function mudarCorOpcao(nomeOpcao, novaCor) {
+    const formData = getCurrentForm();
+    if (!formData) return;
+    
+    // Inicializar se não existir
+    if (!formData.form.opcaoCores) {
+        formData.form.opcaoCores = {};
+    }
+    
+    // Salvar a cor escolhida
+    formData.form.opcaoCores[nomeOpcao] = novaCor;
+    saveData();
+    
+    // Re-renderizar para aplicar as cores
+    renderQuestionsList();
+    renderLivePreview();
 }
 
 function deleteQuestion(id) {
@@ -1908,11 +2257,15 @@ function updateQuestion(id, field, value) {
     if (!formData) return;
     const q = formData.form.questions.find(q => q.id === id);
     if (q) {
-        q[field] = value;
+        if (field === 'infoContent') {
+            q.infoContent = value;
+        } else {
+            q[field] = value;
+        }
         saveData();
+        renderQuestionsList();
         renderLivePreview();
         
-        // Se mudou o título, atualizar cabeçalho
         if (field === 'title') {
             atualizarCabecalhoAba(formData.id);
         }
@@ -2013,23 +2366,334 @@ function renderLivePreview() {
     if (!container || !formData) return;
     const f = formData.form;
     
-    // 🔥 APLICA A COR DO FORMULÁRIO NO PREVIEW
     const corForm = f.theme?.primary || '#4f46e5';
     container.style.setProperty('--primary', corForm);
     container.style.setProperty('--primary-hover', corForm);
     
+    // MESMO LAYOUT DO form.html (link público)
     container.innerHTML = `
-        ${f.banner ? `<div class="banner-preview"><img src="${f.banner}" alt="Banner"></div>` : ''}
-        <h2 class="form-title">${escapeHtml(f.title)}</h2>
-        ${f.subtitle ? `<p class="form-subtitle">${escapeHtml(f.subtitle)}</p>` : ''}
-        ${f.description ? `<div style="color:var(--text-muted);margin-bottom:24px;">${escapeHtml(f.description)}</div>` : ''}
-        <form id="dynamic-preview-form" onsubmit="return false;">
-            <div id="dynamic-questions-container"></div>
-            <button type="button" class="btn btn-primary" onclick="submitDynamicPreview()" style="width:100%;justify-content:center;margin-top:20px;">📤 Enviar</button>
-        </form>
-        ${f.footer ? `<div style="margin-top:32px;padding-top:24px;border-top:1px solid var(--border);text-align:center;font-size:13px;">${escapeHtml(f.footer)}</div>` : ''}
+        <div class="preview-card" style="background: var(--bg-elev); border-radius: 16px; padding: 24px; border: 1px solid var(--border); max-width: 600px; margin: 0 auto; box-shadow: 0 4px 20px rgba(0,0,0,0.08);">
+            ${f.banner ? `<div class="banner-preview"><img src="${f.banner}" alt="Banner" style="width:100%; border-radius:12px;"></div>` : ''}
+            
+            <div style="text-align: center; margin-bottom: 24px;">
+                <h2 style="font-size: 28px; font-weight: 700; background: linear-gradient(135deg, var(--primary), #8b5cf6); -webkit-background-clip: text; background-clip: text; color: transparent; margin-bottom: 12px;">
+                    ${escapeHtml(f.title || formData.name)}
+                </h2>
+                ${f.subtitle ? `<p style="color: var(--text-muted); font-size: 16px; margin-bottom: 8px;">${escapeHtml(f.subtitle)}</p>` : ''}
+                ${f.description ? `<div style="background: var(--bg); padding: 16px; border-radius: 12px; border-left: 4px solid var(--primary); text-align: left; margin-top: 16px; font-size: 14px; color: var(--text-muted);">
+                    <span style="font-weight: 600;">ℹ️ Sobre este formulário</span><br>
+                    ${escapeHtml(f.description)}
+                </div>` : ''}
+            </div>
+            
+            <form id="preview-form" onsubmit="return false;">
+                <div id="preview-questions-container"></div>
+                <button type="button" class="btn btn-primary" id="preview-submit-btn" onclick="submitPreviewForm()" style="width:100%;justify-content:center;margin-top:24px;padding:14px;font-size:16px;">
+                    📤 Enviar resposta
+                </button>
+            </form>
+            
+            ${f.footer ? `<div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); text-align: center; font-size: 12px; color: var(--text-muted);">${escapeHtml(f.footer)}</div>` : ''}
+        </div>
+        
+        <!-- Tela de agradecimento -->
+        <div id="preview-thankyou" class="thankyou-screen" style="display: none; max-width: 600px; margin: 0 auto;">
+            <div class="thankyou-icon">🎉</div>
+            <div class="thankyou-title">Resposta enviada!</div>
+            <div class="thankyou-message">Teste concluído com sucesso!</div>
+            <div class="thankyou-buttons">
+                <button class="btn" onclick="resetPreviewForm()">📝 Testar novamente</button>
+                <button class="btn btn-primary" onclick="resetPreviewForm()">✕ Fechar</button>
+            </div>
+        </div>
     `;
-    setupDynamicPreview();
+    
+    setupPreviewConditions(formData);
+}
+
+
+function setupPreviewConditions(formData) {
+    const container = document.getElementById('preview-questions-container');
+    if (!container) return;
+    
+    function renderizarPerguntasPreview() {
+        const perguntas = formData.form.questions || [];
+        
+        container.innerHTML = perguntas.map(q => `
+            <div class="form-group" data-preview-qid="${q.id}" style="margin-bottom: 20px;">
+                <label class="label" style="font-weight: 600; margin-bottom: 8px; display: block;">
+                    ${escapeHtml(q.title)}${q.required ? '<span style="color: var(--error); margin-left: 4px;">*</span>' : ''}
+                </label>
+                ${renderizarInputPreview(q)}
+            </div>
+        `).join('');
+        
+        // Configurar eventos das escalas
+        document.querySelectorAll('.scale-container').forEach(container => {
+            container.querySelectorAll('.scale-option').forEach(opt => {
+                opt.addEventListener('click', function() {
+                    selecionarEscalaPreview(this);
+                });
+            });
+        });
+    }
+    
+    function atualizarVisibilidade() {
+        const formEl = document.getElementById('preview-form');
+        if (!formEl) return;
+        
+        const respostas = {};
+        formEl.querySelectorAll('input, select, textarea').forEach(inp => {
+            if (inp.name && inp.name.startsWith('prev_')) {
+                const qid = inp.name.replace('prev_', '');
+                if (inp.type === 'radio' && inp.checked) respostas[qid] = inp.value;
+                else if (inp.type === 'checkbox') {
+                    if (!respostas[qid]) respostas[qid] = [];
+                    if (inp.checked) respostas[qid].push(inp.value);
+                } else if (inp.type !== 'radio') {
+                    respostas[qid] = inp.value;
+                }
+            }
+        });
+        
+        const perguntas = formData.form.questions || [];
+        perguntas.forEach(q => {
+            const div = document.querySelector(`[data-preview-qid="${q.id}"]`);
+            if (!div) return;
+            
+            let mostrar = false;
+            
+            if (!q.condition || !q.condition.dependsOn) {
+                mostrar = true;
+            } else {
+                const valorDependencia = respostas[q.condition.dependsOn];
+                if (valorDependencia) {
+                    const expectedValue = q.condition.expectedValue;
+                    const valoresEsperados = expectedValue.split(',').map(v => v.trim());
+                    if (Array.isArray(valorDependencia)) {
+                        mostrar = valorDependencia.some(valor => valoresEsperados.includes(String(valor)));
+                    } else {
+                        mostrar = valoresEsperados.includes(String(valorDependencia));
+                    }
+                }
+            }
+            
+            div.style.display = mostrar ? 'block' : 'none';
+            
+            if (!mostrar) {
+                const inputs = div.querySelectorAll('input, select, textarea');
+                inputs.forEach(inp => {
+                    if (inp.type === 'radio' || inp.type === 'checkbox') inp.checked = false;
+                    else inp.value = '';
+                });
+            }
+        });
+    }
+    
+    const attach = () => {
+        document.querySelectorAll('#preview-form input, #preview-form select, #preview-form textarea').forEach(inp => {
+            inp.removeEventListener('change', atualizarVisibilidade);
+            inp.removeEventListener('input', atualizarVisibilidade);
+            inp.addEventListener('change', atualizarVisibilidade);
+            inp.addEventListener('input', atualizarVisibilidade);
+        });
+    };
+    
+    renderizarPerguntasPreview();
+    attach();
+    atualizarVisibilidade();
+}
+
+function renderizarInputPreview(q) {
+    const name = `prev_${q.id}`;
+    const id = `prev_campo_${q.id}`;
+    
+    switch(q.type) {
+        case 'info': return `
+            <div style="background: linear-gradient(135deg, var(--primary-light) 0%, var(--bg-elev) 100%); border-left: 4px solid var(--primary); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                    <span style="font-size: 28px;">ℹ️</span>
+                    <h3 style="color: var(--primary); margin: 0; font-size: 18px;">Informação importante</h3>
+                </div>
+                <div style="color: var(--text); line-height: 1.6; font-size: 14px;">
+                    ${formatarInformativo(q.infoContent || 'Nenhuma informação disponível')}
+                </div>
+            </div>`;
+        case 'text': return `<input type="text" class="input" name="${name}" id="${id}" style="width:100%; padding: 14px; font-size: 16px;">`;
+        case 'email': return `<input type="email" class="input" name="${name}" id="${id}" style="width:100%; padding: 14px; font-size: 16px;">`;
+        case 'number': return `<input type="number" class="input" name="${name}" id="${id}" style="width:100%; padding: 14px; font-size: 16px;">`;
+        case 'textarea': return `
+            <textarea class="textarea" name="${name}" id="${id}" style="width:100%; padding: 14px; font-size: 16px; min-height: 100px;" placeholder="Digite aqui..."></textarea>`;
+        case 'radio': return `<div class="radio-group">${(q.options || []).map(opt => `
+            <label class="radio-option" style="display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; cursor: pointer;">
+                <input type="radio" name="${name}" value="${escapeHtml(opt)}"> 
+                <span>${escapeHtml(opt)}</span>
+            </label>`).join('')}</div>`;
+        case 'checkbox': return `<div class="checkbox-group">${(q.options || []).map(opt => `
+            <label class="checkbox-option" style="display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; cursor: pointer;">
+                <input type="checkbox" name="${name}" value="${escapeHtml(opt)}"> 
+                <span>${escapeHtml(opt)}</span>
+            </label>`).join('')}</div>`;
+        case 'select': return `<select class="select" name="${name}" id="${id}" style="width:100%; padding: 14px;">
+            <option value="">Selecione...</option>
+            ${(q.options || []).map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
+        </select>`;
+        case 'scale': return `
+            <div class="scale-container" data-name="${name}">
+                ${[1,2,3,4,5].map(n => `
+                    <div class="scale-option" data-value="${n}" style="flex: 1; text-align: center; padding: 12px; background: var(--bg); border-radius: 10px; border: 1px solid var(--border); cursor: pointer; transition: all 0.2s; font-weight: 600;">
+                        ${n}
+                        <input type="radio" name="${name}" value="${n}" style="display: none;">
+                    </div>
+                `).join('')}
+            </div>`;
+        case 'date': return `<input type="date" class="input" name="${name}" id="${id}" style="width:100%; padding: 14px;">`;
+        case 'time': return `<input type="time" class="input" name="${name}" id="${id}" style="width:100%; padding: 14px;">`;
+        default: return `<input type="text" class="input" name="${name}" id="${id}" style="width:100%; padding: 14px;">`;
+    }
+}
+
+async function submitPreviewForm() {
+    const formData = getCurrentForm();
+    if (!formData) return;
+    const form = document.getElementById('preview-form');
+    if (!form) return;
+    
+    const fd = new FormData(form);
+    const response = { id: generateId(), timestamp: new Date().toISOString(), data: {} };
+    let err = false;
+    
+    // Pegar apenas perguntas visíveis
+    const perguntasVisiveis = [];
+    document.querySelectorAll('[data-preview-qid]').forEach(div => {
+        if (div.style.display !== 'none') {
+            const qid = div.getAttribute('data-preview-qid');
+            const pergunta = formData.form.questions.find(q => q.id === qid);
+            if (pergunta) perguntasVisiveis.push(pergunta);
+        }
+    });
+    
+    for (const q of perguntasVisiveis) {
+        const name = `prev_${q.id}`;
+        const val = q.type === 'checkbox' ? fd.getAll(name) : fd.get(name);
+        if (q.required && (!val || (Array.isArray(val) && val.length === 0))) {
+            showToast(`Responda: ${q.title}`, 'error');
+            err = true;
+            break;
+        }
+        response.data[q.id] = val || '';
+    }
+    
+    if (!err) {
+        // Simular envio
+        const btn = document.getElementById('preview-submit-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Enviando...';
+        }
+        
+        await new Promise(r => setTimeout(r, 800));
+        
+        if (!formData.responses) formData.responses = [];
+        formData.responses.push(response);
+        saveData();
+        
+        // Mostrar agradecimento
+        const previewCard = document.querySelector('#live-preview .preview-card');
+        const thankyou = document.getElementById('preview-thankyou');
+        if (previewCard) previewCard.style.display = 'none';
+        if (thankyou) thankyou.style.display = 'flex';
+        
+        createConfetti();
+        showToast('✅ Teste enviado com sucesso!', 'success');
+    }
+}
+
+function resetPreviewForm() {
+    const previewCard = document.querySelector('#live-preview .preview-card');
+    const thankyou = document.getElementById('preview-thankyou');
+    const form = document.getElementById('preview-form');
+    
+    if (previewCard) previewCard.style.display = '';
+    if (thankyou) thankyou.style.display = 'none';
+    if (form) form.reset();
+    
+    // Recarregar preview
+    const formData = getCurrentForm();
+    if (formData) setupPreviewConditions(formData);
+    
+    // Scroll para o topo
+    document.getElementById('live-preview').scrollIntoView({ behavior: 'smooth' });
+}
+
+function selecionarEscalaPreview(elemento) {
+    const container = elemento.closest('.scale-container');
+    const todasOpcoes = container.querySelectorAll('.scale-option');
+    
+    todasOpcoes.forEach(opt => {
+        opt.classList.remove('selected');
+        opt.style.background = 'var(--bg)';
+        opt.style.borderColor = 'var(--border)';
+        opt.style.color = 'var(--text)';
+    });
+    
+    elemento.classList.add('selected');
+    elemento.style.background = 'var(--primary)';
+    elemento.style.borderColor = 'var(--primary)';
+    elemento.style.color = 'white';
+    
+    const radio = elemento.querySelector('input[type="radio"]');
+    if (radio) {
+        radio.checked = true;
+        const changeEvent = new Event('change', { bubbles: true });
+        radio.dispatchEvent(changeEvent);
+    }
+}
+
+function submitPreviewTest() {
+    const formData = getCurrentForm();
+    if (!formData) return;
+    const form = document.getElementById('preview-test-form');
+    if (!form) return;
+    
+    const fd = new FormData(form);
+    const response = { id: generateId(), timestamp: new Date().toISOString(), data: {} };
+    let err = false;
+    
+    for (const q of formData.form.questions) {
+        const el = document.getElementById(`preview-q-${q.id}`);
+        if (el && el.style.display === 'none') continue;
+        const name = `q_${q.id}`;
+        const val = q.type === 'checkbox' ? fd.getAll(name) : fd.get(name);
+        if (q.required && (!val || (Array.isArray(val) && val.length === 0))) {
+            showToast(`Responda: ${q.title}`, 'error');
+            err = true;
+            break;
+        }
+        response.data[q.id] = val || '';
+    }
+    
+    if (!err) {
+        if (!formData.responses) formData.responses = [];
+        formData.responses.push(response);
+        saveData();
+        
+        // Feedback visual
+        const btn = document.getElementById('preview-submit-btn');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = '✅ Enviado!';
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.textContent = '📤 Enviar';
+                form.reset();
+                setupTestConditions(formData);
+            }, 1500);
+        }
+        
+        createConfetti();
+        showToast('Resposta enviada! 🎉', 'success');
+    }
 }
 
 function setupDynamicPreview() {
@@ -2090,23 +2754,202 @@ const visible = formData.form.questions.filter(q => {
             inp.addEventListener('input', updateQuestions);
         });
     }
-    updateQuestions();
+        updateQuestions();
+    
+    // 🔥 NOVA LINHA - Inicializar escalas e eventos de clique
+    setTimeout(() => initDynamicScales(), 100);
 }
+
+// Inicializar escalas na prévia dinâmica
+function initDynamicScales() {
+    document.querySelectorAll('.dynamic-scale-container').forEach(container => {
+        const labels = container.querySelectorAll('.dynamic-scale-option');
+        const name = container.getAttribute('data-name');
+        
+        labels.forEach(label => {
+            // Remove evento antigo (se existir)
+            label.removeEventListener('click', dynamicScaleHandler);
+            // Adiciona novo evento
+            label.addEventListener('click', dynamicScaleHandler);
+        });
+    });
+    
+    // Também configurar os radio options para disparar evento change
+    document.querySelectorAll('#dynamic-preview-form input, #dynamic-preview-form select, #dynamic-preview-form textarea').forEach(inp => {
+        inp.removeEventListener('change', triggerDynamicUpdate);
+        inp.addEventListener('change', triggerDynamicUpdate);
+        inp.removeEventListener('input', triggerDynamicUpdate);
+        inp.addEventListener('input', triggerDynamicUpdate);
+    });
+}
+
+// Handler para clique nas escalas
+function dynamicScaleHandler(e) {
+    const label = e.currentTarget;
+    const container = label.closest('.dynamic-scale-container');
+    const radio = label.querySelector('input[type="radio"]');
+    
+    if (radio) {
+        radio.checked = true;
+        
+        // Resetar todos os labels do mesmo container
+        container.querySelectorAll('.dynamic-scale-option').forEach(l => {
+            l.style.background = 'var(--bg)';
+            l.style.borderColor = 'var(--border)';
+            l.style.color = 'var(--text)';
+        });
+        
+        // Destacar o selecionado
+        label.style.background = 'var(--primary-light)';
+        label.style.borderColor = 'var(--primary)';
+        label.style.color = 'var(--primary)';
+        
+        // Disparar evento change para atualizar condições
+        const changeEvent = new Event('change', { bubbles: true });
+        radio.dispatchEvent(changeEvent);
+    }
+}
+
+// Handler para clique nos radios normais
+function dynamicRadioSelect(label, radioName) {
+    const radio = label.querySelector('input[type="radio"]');
+    if (radio) {
+        radio.checked = true;
+        
+        // Resetar estilo dos labels irmãos
+        const container = label.parentElement;
+        container.querySelectorAll('.radio-option').forEach(l => {
+            l.style.background = 'var(--bg)';
+            l.style.borderColor = 'var(--border)';
+        });
+        
+        // Destacar o selecionado
+        label.style.background = 'var(--primary-light)';
+        label.style.borderColor = 'var(--primary)';
+        
+        // Disparar evento change
+        const changeEvent = new Event('change', { bubbles: true });
+        radio.dispatchEvent(changeEvent);
+    }
+}
+
+// Handler para checkbox
+function dynamicCheckboxToggle(label) {
+    const checkbox = label.querySelector('input[type="checkbox"]');
+    if (checkbox) {
+        checkbox.checked = !checkbox.checked;
+        
+        // Destacar visualmente se marcado
+        if (checkbox.checked) {
+            label.style.background = 'var(--primary-light)';
+            label.style.borderColor = 'var(--primary)';
+        } else {
+            label.style.background = 'var(--bg)';
+            label.style.borderColor = 'var(--border)';
+        }
+        
+        // Disparar evento change
+        const changeEvent = new Event('change', { bubbles: true });
+        checkbox.dispatchEvent(changeEvent);
+    }
+}
+
+// Gatilho para atualizar condições quando algo muda
+function triggerDynamicUpdate() {
+    // Chama a função update que está dentro de setupDynamicPreview
+    const formData = getCurrentForm();
+    if (!formData) return;
+    
+    const container = document.getElementById('dynamic-questions-container');
+    if (!container) return;
+    
+    // Reexecuta a lógica de visibilidade das condições
+    const form = document.getElementById('dynamic-preview-form');
+    if (!form) return;
+    
+    const answers = {};
+    form.querySelectorAll('input, select, textarea').forEach(inp => {
+        if (inp.name?.startsWith('q_')) {
+            const qid = inp.name.replace('q_', '');
+            if (inp.type === 'radio' && inp.checked) answers[qid] = inp.value;
+            else if (inp.type === 'checkbox') {
+                if (!answers[qid]) answers[qid] = [];
+                if (inp.checked) answers[qid].push(inp.value);
+            } else if (inp.type !== 'radio') answers[qid] = inp.value;
+        }
+    });
+    
+    const visible = formData.form.questions.filter(q => {
+        if (!q.condition?.dependsOn) return true;
+        const dep = answers[q.condition.dependsOn];
+        if (!dep) return false;
+        const expectedValue = q.condition.expectedValue;
+        const valoresEsperados = expectedValue.split(',').map(v => v.trim());
+        if (Array.isArray(dep)) return dep.some(valor => valoresEsperados.includes(valor));
+        return valoresEsperados.includes(String(dep));
+    });
+    
+    container.innerHTML = visible.map(q => `
+        <div class="form-group" data-dynamic-qid="${q.id}" style="margin-bottom: 20px;">
+            <label class="label" style="font-weight: 600; margin-bottom: 8px; display: block;">
+                ${escapeHtml(q.title)}${q.required ? '<span style="color: var(--error); margin-left: 4px;">*</span>' : ''}
+            </label>
+            ${renderDynamicInput(q)}
+        </div>
+    `).join('');
+    
+    // Reinicializar escalas e eventos
+    setTimeout(() => initDynamicScales(), 50);
+}
+
 
 function renderDynamicInput(q) {
     const name = `q_${q.id}`;
     switch (q.type) {
-        case 'text': return `<input type="text" class="input" name="${name}" placeholder="...">`;
-        case 'email': return `<input type="email" class="input" name="${name}" placeholder="...">`;
-        case 'number': return `<input type="number" class="input" name="${name}" placeholder="...">`;
-        case 'textarea': return `<textarea class="textarea" name="${name}" placeholder="..."></textarea>`;
-        case 'radio': return `<div class="radio-group">${q.options.map(opt => `<label class="radio-option"><input type="radio" name="${name}" value="${escapeHtml(opt)}"><span>${escapeHtml(opt)}</span></label>`).join('')}</div>`;
-        case 'checkbox': return `<div class="checkbox-group">${q.options.map(opt => `<label class="checkbox-option"><input type="checkbox" name="${name}" value="${escapeHtml(opt)}"><span>${escapeHtml(opt)}</span></label>`).join('')}</div>`;
-        case 'select': return `<select class="select" name="${name}"><option value="">Selecione...</option>${q.options.map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}</select>`;
-        case 'date': return `<input type="date" class="input" name="${name}">`;
-        case 'time': return `<input type="time" class="input" name="${name}">`;
-        case 'scale': return `<div style="display:flex;gap:12px;">${[1,2,3,4,5].map(n => `<label style="flex:1;text-align:center;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--border);cursor:pointer;"><input type="radio" name="${name}" value="${n}" style="display:none;"> ${n}</label>`).join('')}</div>`;
-        default: return `<input type="text" class="input" name="${name}" placeholder="...">`;
+        case 'text': return `<input type="text" class="input" name="${name}" placeholder="..." style="width:100%; padding: 14px; font-size: 16px;">`;
+        case 'email': return `<input type="email" class="input" name="${name}" placeholder="..." style="width:100%; padding: 14px; font-size: 16px;">`;
+        case 'number': return `<input type="number" class="input" name="${name}" placeholder="..." style="width:100%; padding: 14px; font-size: 16px;">`;
+        case 'textarea': return `<textarea class="textarea" name="${name}" placeholder="..." style="width:100%; padding: 14px; font-size: 16px; min-height: 100px;"></textarea>`;
+        
+        case 'radio': 
+            return `<div class="radio-group">${q.options.map(opt => `
+                <label class="radio-option" style="display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; background: var(--bg);" 
+                       onclick="dynamicRadioSelect(this, '${name}')">
+                    <input type="radio" name="${name}" value="${escapeHtml(opt)}" style="accent-color: var(--primary); width: 18px; height: 18px;"> 
+                    <span style="font-size: 16px;">${escapeHtml(opt)}</span>
+                </label>
+            `).join('')}</div>`;
+        
+        case 'checkbox': 
+            return `<div class="checkbox-group">${q.options.map(opt => `
+                <label class="checkbox-option" style="display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s; background: var(--bg);" 
+                       onclick="dynamicCheckboxToggle(this)">
+                    <input type="checkbox" name="${name}" value="${escapeHtml(opt)}" style="accent-color: var(--primary); width: 18px; height: 18px;"> 
+                    <span style="font-size: 16px;">${escapeHtml(opt)}</span>
+                </label>
+            `).join('')}</div>`;
+        
+        case 'select': 
+            return `<select class="select" name="${name}" style="width:100%; padding: 14px; font-size: 16px;">
+                <option value="">Selecione...</option>
+                ${q.options.map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
+            </select>`;
+        
+        case 'scale': 
+            return `<div class="dynamic-scale-container" data-name="${name}" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                ${[1,2,3,4,5].map(n => `
+                    <label class="dynamic-scale-option" style="flex: 1; text-align: center; padding: 14px; background: var(--bg); border-radius: 10px; border: 1px solid var(--border); cursor: pointer; transition: all 0.2s; font-size: 16px; font-weight: 600;" 
+                           data-value="${n}">
+                        ${n}
+                        <input type="radio" name="${name}" value="${n}" style="display: none;">
+                    </label>
+                `).join('')}
+            </div>`;
+        
+        case 'date': return `<input type="date" class="input" name="${name}" style="width:100%; padding: 14px; font-size: 16px;">`;
+        case 'time': return `<input type="time" class="input" name="${name}" style="width:100%; padding: 14px; font-size: 16px;">`;
+        case 'info': return `<div style="background: var(--bg-elev-2); padding: 16px; border-radius: 10px; border-left: 4px solid var(--primary); font-size: 14px; line-height: 1.6;">${q.infoContent || ''}</div>`;
+        default: return `<input type="text" class="input" name="${name}" placeholder="..." style="width:100%; padding: 14px; font-size: 16px;">`;
     }
 }
 
@@ -2115,29 +2958,176 @@ async function submitDynamicPreview() {
     if (!formData) return;
     const form = document.getElementById('dynamic-preview-form');
     if (!form) return;
+    
+    // Limpar erros visuais anteriores
+    limparErrosDinamicos();
+    
     const fd = new FormData(form);
     const response = { id: generateId(), timestamp: new Date().toISOString(), data: {} };
-    let err = false;
+    let temErro = false;
+    let primeiroCampoComErro = null;
+    
     const visible = getVisibleQuestionsFromPreview(form, formData);
+    
     for (const q of visible) {
         const name = `q_${q.id}`;
         let val = q.type === 'checkbox' ? fd.getAll(name) : fd.get(name);
+        
         if (q.required && (!val || (Array.isArray(val) && val.length === 0))) {
-            showToast(`Responda: ${q.title}`, 'error');
-            err = true;
-            break;
+            // Marcar campo com erro visual
+            marcarErroDinamico(q.id, `Por favor, responda: ${q.title}`);
+            temErro = true;
+            if (!primeiroCampoComErro) {
+                primeiroCampoComErro = document.querySelector(`[data-dynamic-qid="${q.id}"]`);
+            }
+            // Não para no primeiro erro - marca todos
         }
         response.data[q.id] = val || '';
     }
-    if (!err) {
-        if (!formData.responses) formData.responses = [];
-        formData.responses.push(response);
-        saveData();
-        createConfetti();
-        showToast('Resposta enviada! 🎉', 'success');
-        form.reset();
-        setupDynamicPreview();
+    
+    if (temErro) {
+        // Rolar até o primeiro campo com erro
+        if (primeiroCampoComErro) {
+            primeiroCampoComErro.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        showToast('⚠️ Preencha todos os campos obrigatórios', 'error');
+        return;
     }
+    
+    // === ENVIO COM SUCESSO ===
+    const btn = document.getElementById('dynamic-submit-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> Enviando...';
+    }
+    
+    // Simular barra de progresso
+    await simularProgressoDinamico();
+    
+    // Salvar resposta
+    if (!formData.responses) formData.responses = [];
+    formData.responses.push(response);
+    saveData();
+    
+    // Esconder o formulário e mostrar agradecimento
+    const previewCard = document.querySelector('#live-preview .preview-card');
+    const thankyou = document.getElementById('dynamic-thankyou');
+    
+    if (previewCard) previewCard.style.display = 'none';
+    if (thankyou) thankyou.style.display = 'flex';
+    
+    // Confetes!
+    createConfetti();
+    showToast('✅ Teste enviado com sucesso!', 'success');
+}
+
+// ========== FUNÇÕES AUXILIARES NOVAS ==========
+
+// Limpar todos os erros visuais
+function limparErrosDinamicos() {
+    document.querySelectorAll('#dynamic-preview-form .input, #dynamic-preview-form .textarea, #dynamic-preview-form .select').forEach(el => {
+        el.style.borderColor = '';
+        el.style.boxShadow = '';
+    });
+    document.querySelectorAll('#dynamic-preview-form .radio-group, #dynamic-preview-form .checkbox-group').forEach(el => {
+        el.style.border = '';
+        el.style.borderRadius = '';
+        el.style.padding = '';
+    });
+    document.querySelectorAll('.dynamic-error-msg').forEach(el => el.remove());
+}
+
+// Marcar campo com erro visual
+function marcarErroDinamico(questionId, mensagem) {
+    const container = document.querySelector(`[data-dynamic-qid="${questionId}"]`);
+    if (!container) return;
+    
+    // Marcar inputs dentro do container
+    const inputs = container.querySelectorAll('.input, .textarea, .select');
+    inputs.forEach(inp => {
+        inp.style.borderColor = 'var(--error)';
+        inp.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.15)';
+    });
+    
+    // Marcar grupos de radio/checkbox
+    const grupos = container.querySelectorAll('.radio-group, .checkbox-group');
+    grupos.forEach(g => {
+        g.style.border = '2px solid var(--error)';
+        g.style.borderRadius = '10px';
+        g.style.padding = '8px';
+    });
+    
+    // Adicionar mensagem de erro (se não existir)
+    if (!container.querySelector('.dynamic-error-msg')) {
+        const erroMsg = document.createElement('div');
+        erroMsg.className = 'dynamic-error-msg';
+        erroMsg.style.cssText = 'color: var(--error); font-size: 12px; margin-top: 6px; font-weight: 500;';
+        erroMsg.textContent = mensagem;
+        container.appendChild(erroMsg);
+    }
+}
+
+// Simular barra de progresso durante o envio
+async function simularProgressoDinamico() {
+    const etapas = [
+        { pct: 25, msg: 'Validando respostas...', delay: 300 },
+        { pct: 50, msg: 'Salvando dados...', delay: 400 },
+        { pct: 75, msg: 'Processando...', delay: 300 },
+        { pct: 90, msg: 'Finalizando...', delay: 200 },
+        { pct: 100, msg: '✅ Concluído!', delay: 300 }
+    ];
+    
+    // Criar barra de progresso temporária
+    const progressBar = document.createElement('div');
+    progressBar.id = 'dynamic-progress-bar';
+    progressBar.style.cssText = `
+        position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+        background: var(--bg-elev); border-radius: 12px; padding: 16px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.15); z-index: 3000;
+        border: 1px solid var(--border); width: 90%; max-width: 400px;
+    `;
+    progressBar.innerHTML = `
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px;">
+            <span style="font-weight:600;color:var(--primary);">📤 Enviando teste...</span>
+            <span style="color:var(--text-muted);" id="dynamic-progress-pct">0%</span>
+        </div>
+        <div style="background:var(--bg-elev-2);border-radius:20px;height:8px;overflow:hidden;">
+            <div id="dynamic-progress-fill" style="background:linear-gradient(90deg,var(--primary),#8b5cf6);width:0%;height:100%;border-radius:20px;transition:width 0.3s;"></div>
+        </div>
+        <div id="dynamic-progress-status" style="margin-top:8px;font-size:12px;color:var(--text-muted);text-align:center;">Preparando...</div>
+    `;
+    document.body.appendChild(progressBar);
+    
+    for (const etapa of etapas) {
+        await new Promise(r => setTimeout(r, etapa.delay));
+        document.getElementById('dynamic-progress-pct').textContent = etapa.pct + '%';
+        document.getElementById('dynamic-progress-fill').style.width = etapa.pct + '%';
+        document.getElementById('dynamic-progress-status').textContent = etapa.msg;
+    }
+    
+    await new Promise(r => setTimeout(r, 400));
+    if (progressBar.parentNode) progressBar.remove();
+}
+
+// Resetar preview dinâmica (voltar ao formulário)
+function resetDynamicPreview() {
+    const previewCard = document.querySelector('#live-preview .preview-card');
+    const thankyou = document.getElementById('dynamic-thankyou');
+    const form = document.getElementById('dynamic-preview-form');
+    
+    if (previewCard) previewCard.style.display = '';
+    if (thankyou) thankyou.style.display = 'none';
+    if (form) form.reset();
+    
+    // Limpar erros visuais
+    limparErrosDinamicos();
+    
+    // Reconfigurar preview
+    setupDynamicPreview();
+    
+    // Scroll para o topo do preview
+    const livePreview = document.getElementById('live-preview');
+    if (livePreview) livePreview.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function getVisibleQuestionsFromPreview(form, formData) {
@@ -2201,7 +3191,7 @@ function renderTestInput(q) {
         case 'select': return `<select class="select" name="${name}"><option value="">Selecione...</option>${q.options.map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}</select>`;
         case 'date': return `<input type="date" class="input" name="${name}">`;
         case 'time': return `<input type="time" class="input" name="${name}">`;
-        case 'scale': return `<div style="display:flex;gap:12px;">${[1,2,3,4,5].map(n => `<label style="flex:1;text-align:center;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--border);"><input type="radio" name="${name}" value="${n}" style="display:none;"> ${n}</label>`).join('')}</div>`;
+        case 'scale': return `<div style="display:flex;gap:12px;">${[1,2,3,4,5].map(n => `<label style="flex:1;text-align:center;padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--border);cursor:pointer;" onclick="this.querySelector('input').checked=true; this.style.background='var(--primary-light)'; this.style.borderColor='var(--primary)';">${n}<input type="radio" name="${name}" value="${n}" style="display:none;"></label>`).join('')}</div>`;
         default: return `<input type="text" class="input" name="${name}">`;
     }
 }
@@ -2594,6 +3584,15 @@ function renderMobileInput(q) {
         case 'select': return `<select class="select" name="${name}"><option value="">Selecione...</option>${q.options.map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}</select>`;
         case 'date': return `<input type="date" class="input" name="${name}" style="padding:14px;font-size:16px;">`;
         case 'time': return `<input type="time" class="input" name="${name}" style="padding:14px;font-size:16px;">`;
+        case 'scale': return `
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                ${[1,2,3,4,5].map(n => `
+                    <label style="flex: 1; text-align: center; padding: 12px; background: var(--bg); border-radius: 10px; border: 1px solid var(--border); cursor: pointer;" onclick="this.querySelector('input').checked=true; this.style.background='var(--primary-light)'; this.style.borderColor='var(--primary)';">
+                        ${n}<input type="radio" name="${name}" value="${n}" style="display: none;">
+                    </label>
+                `).join('')}
+            </div>
+        `;
         default: return `<input type="text" class="input" name="${name}" style="padding:14px;font-size:16px;">`;
     }
 }
@@ -2670,24 +3669,43 @@ function toggleAllForms(checked) {
 function confirmExport() {
     if (selectedFormsForExport.length === 0) { showToast('Selecione ao menos um', 'error'); return; }
     const toExport = forms.filter(f => selectedFormsForExport.includes(f.id));
-const exportData = {
-    version: '1.0',
-    exportedAt: new Date().toISOString(),
-    forms: toExport.map(f => ({
-        name: f.name,
-        form: {
-            title: f.form.title,
-            subtitle: f.form.subtitle,
-            description: f.form.description,
-            banner: f.form.banner,
-            footer: f.form.footer,
-            questions: f.form.questions,
-            theme: f.form.theme,
-            config: f.form.config,
-            attachment: f.form.attachment || { maxSize: 10, allowedTypes: 'pdf,jpg,jpeg,png', alternativeEmail: '', customMessage: '' }
-        }
-    }))
-};
+    
+    const exportData = {
+        version: '1.0',
+        exportedAt: new Date().toISOString(),
+        forms: toExport.map(f => ({
+            name: f.name,
+            locked: f.locked || false,
+            createdAt: f.createdAt,
+            form: {
+                title: f.form.title,
+                subtitle: f.form.subtitle || '',
+                description: f.form.description || '',
+                banner: f.form.banner || '',
+                footer: f.form.footer || '',
+                emails: f.form.emails || '',
+                theme: f.form.theme || { primary: '#4f46e5' },
+                config: f.form.config || { showProgress: true },
+                attachment: f.form.attachment || { maxSize: 10, allowedTypes: 'pdf,jpg,jpeg,png', alternativeEmail: '', customMessage: '' },
+                opcaoCores: f.form.opcaoCores || {},
+                setores: f.form.setores || [],
+                maxSelecoes: f.form.maxSelecoes || 0,
+                questions: f.form.questions.map(q => ({
+                    id: q.id,
+                    type: q.type || 'text',
+                    title: q.title || '',
+                    required: q.required || false,
+                    options: q.options || [],
+                    condition: q.condition || null,
+                    infoContent: q.infoContent || '',
+                    maxSelections: q.maxSelections || 0,
+                    linkedToSectors: q.linkedToSectors || false,
+                    sectorIds: q.sectorIds || []
+                }))
+            }
+        }))
+    };
+    
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -2799,14 +3817,9 @@ async function confirmImport() {
         const novoId = generateId();
         const emailsImportados = imp.form?.emails || '';
         
-// 🔥 RECONSTRUIR PERGUNTAS COM NOVOS IDs (PRESERVANDO AS CONDIÇÕES)
+// 🔥 RECONSTRUIR PERGUNTAS COM NOVOS IDs (PRESERVANDO TUDO)
 const novasPerguntas = (imp.form?.questions || []).map(q => {
-    // Para cada pergunta, vamos mapear o ID antigo para o novo ID
-    // para poder preservar o dependsOn
-    
     const novoId = generateId();
-    
-    // Guardar o mapeamento para usar depois
     if (!window.__idMappingImport) window.__idMappingImport = {};
     window.__idMappingImport[q.id] = novoId;
     
@@ -2817,10 +3830,13 @@ const novasPerguntas = (imp.form?.questions || []).map(q => {
         required: q.required || false,
         options: q.options || ['Opção 1', 'Opção 2'],
         condition: q.condition ? {
-            // 🔥 NOVO: preserva o dependsOn original (vai ser ajustado depois)
             dependsOn: q.condition.dependsOn,
             expectedValue: q.condition.expectedValue
-        } : null
+        } : null,
+        infoContent: q.infoContent || '',
+        maxSelections: q.maxSelections || 0,
+        linkedToSectors: q.linkedToSectors || false,
+        sectorIds: q.sectorIds || []
     };
 });
 
@@ -2841,11 +3857,12 @@ novasPerguntas.forEach(pergunta => {
 // Limpar o mapeamento global
 delete window.__idMappingImport;
         
-        // 🔥 CRIAR FORMULÁRIO COM NOVO ID
+// 🔥 CRIAR FORMULÁRIO COM NOVO ID - COM TODOS OS CAMPOS
 const newForm = {
     id: novoId,
     name: newName,
     createdAt: new Date().toISOString(),
+    locked: imp.locked || false,
     form: {
         title: imp.form?.title || imp.name,
         subtitle: imp.form?.subtitle || '',
@@ -2856,7 +3873,10 @@ const newForm = {
         theme: imp.form?.theme || { primary: '#4f46e5' },
         config: imp.form?.config || { showProgress: true },
         emails: emailsImportados,
-        attachment: imp.form?.attachment || { maxSize: 10, allowedTypes: 'pdf,jpg,jpeg,png', alternativeEmail: '', customMessage: '' }
+        attachment: imp.form?.attachment || { maxSize: 10, allowedTypes: 'pdf,jpg,jpeg,png', alternativeEmail: '', customMessage: '' },
+        opcaoCores: imp.form?.opcaoCores || {},
+        setores: imp.form?.setores || [],
+        maxSelecoes: imp.form?.maxSelecoes || 0
     },
     responses: []
 };
@@ -2866,16 +3886,41 @@ const newForm = {
         
         atualizarProgresso(50 + Math.round((i + 1) / importedFormsData.length * 50), `Criando aba: ${newName}...`);
         
-        // 🔥 PASSO 1: CRIAR A ABA NO SHEETS
-        const cabecalhos = JSON.stringify(['Data/Hora', ...novasPerguntas.map(q => q.title)]);
-        const urlCriarAba = `${CONFIG.googleApiUrl}?acao=criarAba&nomeFormulario=${encodeURIComponent(newName)}&cabecalhos=${encodeURIComponent(cabecalhos)}`;
-        
-        try {
-            await fetch(urlCriarAba);
-            console.log(`✅ Aba criada: ${newName}`);
-        } catch (erro) {
-            console.error(`❌ Erro ao criar aba:`, erro);
-        }
+// 🔥 PASSO 1: CRIAR A ABA NO SHEETS
+const cabecalhos = JSON.stringify(['Data/Hora', ...novasPerguntas.map(q => q.title)]);
+try {
+    const bodyAba = new URLSearchParams();
+    bodyAba.append('acao', 'criarAba');
+    bodyAba.append('nomeFormulario', newName);
+    bodyAba.append('cabecalhos', cabecalhos);
+    
+    const respostaCriar = await fetch(CONFIG.googleApiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: bodyAba.toString()
+    });
+    const resultadoCriar = await respostaCriar.json();
+    console.log(`✅ Aba criada: ${newName}`, resultadoCriar);
+} catch (erro) {
+    console.error(`❌ Erro ao criar aba:`, erro);
+}
+
+// 🔥 FORÇAR ATUALIZAÇÃO DO CABEÇALHO (garantia extra) - USA POST
+try {
+    const bodyAtualizar = new URLSearchParams();
+    bodyAtualizar.append('acao', 'atualizarCabecalho');
+    bodyAtualizar.append('nomeFormulario', newName);
+    bodyAtualizar.append('cabecalhos', cabecalhos);
+    
+    await fetch(CONFIG.googleApiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: bodyAtualizar.toString()
+    });
+    console.log(`✅ Cabeçalho atualizado para: ${newName}`);
+} catch (erro) {
+    console.error(`❌ Erro ao atualizar cabeçalho:`, erro);
+}
         
         // 🔥 PASSO 2: SALVAR NA ABA 'forms' (É ISSO QUE ESTAVA FALTANDO!)
         const sucesso = await salvarNaNuvem('forms', newForm.id, newForm);
@@ -2993,13 +4038,24 @@ async function atualizarCabecalhoAba(formId) {
     const nomeAba = form.name;
     const cabecalhos = JSON.stringify(['Data/Hora', ...form.form.questions.map(q => q.title)]);
     
-    const url = `${CONFIG.googleApiUrl}?acao=atualizarCabecalho&nomeFormulario=${encodeURIComponent(nomeAba)}&cabecalhos=${encodeURIComponent(cabecalhos)}`;
-    
-    console.log('📡 Atualizando cabeçalho da aba:', nomeAba);
+    console.log('📡 Atualizando cabeçalho da aba:', nomeAba, '| Tamanho:', cabecalhos.length, 'caracteres');
     
     try {
-        const resposta = await fetch(url);
-        const resultado = await resposta.json();
+        // 🔥 USA POST PARA SUPORTAR DADOS GRANDES
+        const body = new URLSearchParams();
+        body.append('acao', 'atualizarCabecalho');
+        body.append('nomeFormulario', nomeAba);
+        body.append('cabecalhos', cabecalhos);
+        
+        const response = await fetch(CONFIG.googleApiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: body.toString()
+        });
+        
+        const resultado = await response.json();
         console.log('📦 Resposta atualizar cabeçalho:', resultado);
     } catch (erro) {
         console.error('❌ Erro ao atualizar cabeçalho:', erro);
@@ -3308,8 +4364,12 @@ function setupPublicFormConditions(form) {
             if (!q.condition?.dependsOn) return true;
             const depValue = answers[q.condition.dependsOn];
             if (!depValue) return false;
-            if (Array.isArray(depValue)) return depValue.includes(q.condition.expectedValue);
-            return String(depValue) === String(q.condition.expectedValue);
+            
+            const expectedValue = q.condition.expectedValue;
+            const valoresEsperados = expectedValue.split(',').map(v => v.trim());
+            
+            if (Array.isArray(depValue)) return depValue.some(val => valoresEsperados.includes(val));
+            return valoresEsperados.includes(String(depValue));
         });
         
         container.innerHTML = visibleQuestions.map(q => `
@@ -3321,7 +4381,8 @@ function setupPublicFormConditions(form) {
             </div>
         `).join('');
         
-        // Reaplicar event listeners
+        initPublicScales();
+        
         formEl.querySelectorAll('input, select, textarea').forEach(inp => {
             inp.removeEventListener('change', updateVisibility);
             inp.addEventListener('change', updateVisibility);
@@ -3357,11 +4418,17 @@ function renderPublicInput(q) {
             <option value="">Selecione...</option>
             ${q.options.map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
         </select>`;
-        case 'scale': return `<div style="display: flex; gap: 8px; flex-wrap: wrap;">${[1,2,3,4,5].map(n => `
-            <label style="flex: 1; text-align: center; padding: 12px; background: var(--bg); border-radius: 10px; border: 1px solid var(--border); cursor: pointer;">
-                <input type="radio" name="${name}" value="${n}" style="display: none;"> ${n}
-            </label>
-        `).join('')}</div>`;
+        case 'scale': return `
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;" class="scale-container" data-name="${name}">
+                ${[1,2,3,4,5].map(n => `
+                    <label style="flex: 1; text-align: center; padding: 12px; background: var(--bg); border-radius: 10px; border: 1px solid var(--border); cursor: pointer; transition: all 0.2s;" 
+                           class="scale-option" data-value="${n}">
+                        ${n}
+                        <input type="radio" name="${name}" value="${n}" style="display: none;">
+                    </label>
+                `).join('')}
+            </div>
+        `;
         case 'date': return `<input type="date" class="input" name="${name}" style="width:100%; padding: 14px;">`;
         case 'time': return `<input type="time" class="input" name="${name}" style="width:100%; padding: 14px;">`;
         default: return `<input type="text" class="input" name="${name}" style="width:100%; padding: 14px;">`;
@@ -3672,6 +4739,457 @@ async function iniciarApp() {
         }
     }
 }
+
+// ==================== VARIÁVEIS PARA DESFAZER NA ÁRVORE ====================
+let ultimoEstadoArvore = null;
+let botaoDesfazerArvore = null;
+
+// ==================== FUNÇÕES DA VISUALIZAÇÃO EM ÁRVORE ====================
+
+function salvarEstadoArvore() {
+    const formData = getCurrentForm();
+    if (!formData) return;
+    // Salva uma cópia profunda do estado atual das perguntas
+    ultimoEstadoArvore = JSON.parse(JSON.stringify(formData.form.questions));
+    
+    // Ativar botão desfazer
+    const btn = document.getElementById('btn-desfazer-arvore');
+    if (btn) {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+    }
+}
+
+function desfazerMovimentoArvore() {
+    if (!ultimoEstadoArvore) {
+        showToast('Nada para desfazer', 'info');
+        return;
+    }
+    
+    const formData = getCurrentForm();
+    if (!formData) return;
+    
+    // Restaurar o estado anterior
+    formData.form.questions = JSON.parse(JSON.stringify(ultimoEstadoArvore));
+    saveData();
+    
+    // Limpar o último estado para não desfazer duas vezes
+    ultimoEstadoArvore = null;
+    
+    // Desativar botão desfazer
+    const btn = document.getElementById('btn-desfazer-arvore');
+    if (btn) {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+    }
+    
+    // Recarregar a árvore e a lista de perguntas
+    renderizarArvore();
+    renderQuestionsList();
+    renderLivePreview();
+    
+    showToast('✅ Movimento desfeito!', 'success');
+}
+
+function renderizarArvore() {
+    const container = document.getElementById('arvore-visualizacao');
+    const formData = getCurrentForm();
+    
+    if (!formData || !formData.form.questions || formData.form.questions.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 60px; color: var(--text-muted);">
+                📭 Nenhuma pergunta ainda<br>
+                <span style="font-size: 14px;">Volte para a aba "Perguntas" e adicione perguntas ao formulário.</span>
+            </div>
+        `;
+        return;
+    }
+    
+    // 🔥 PEGAR AS CORES SALVAS
+    const opcaoCores = formData.form.opcaoCores || {};
+    
+    // Identificar a pergunta principal (primeira sem condição ou a primeira da lista)
+    let perguntaPrincipal = null;
+    let indicePrincipal = -1;
+    
+    for (let i = 0; i < formData.form.questions.length; i++) {
+        const q = formData.form.questions[i];
+        if (!q.condition || !q.condition.dependsOn) {
+            perguntaPrincipal = q;
+            indicePrincipal = i;
+            break;
+        }
+    }
+    
+    // Construir a estrutura em árvore
+    let html = `<div class="arvore-container" style="font-family: system-ui; font-size: 14px;">`;
+    
+    if (perguntaPrincipal) {
+        // Mostrar a pergunta principal
+        html += `
+            <div class="arvore-item arvore-root" data-qid="${perguntaPrincipal.id}" data-indice="${indicePrincipal}" style="margin-bottom: 16px;">
+                <div class="arvore-header" style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: var(--primary-light); border-radius: 10px; margin-bottom: 12px;">
+                    <span class="drag-handle-arvore" draggable="true" data-qid="${perguntaPrincipal.id}" data-tipo="pergunta" style="cursor: grab; padding: 4px 8px; background: var(--bg-elev-2); border-radius: 6px;">⋮⋮</span>
+                    <span style="font-weight: bold; font-size: 15px;">📌 ${escapeHtml(perguntaPrincipal.title)}</span>
+                    ${perguntaPrincipal.type === 'radio' || perguntaPrincipal.type === 'select' || perguntaPrincipal.type === 'checkbox' ? '<span style="font-size: 11px; color: var(--text-muted); background: var(--bg); padding: 2px 8px; border-radius: 10px;">(pergunta com opções)</span>' : ''}
+                </div>
+                <div class="arvore-filhos" style="margin-left: 20px; border-left: 2px solid var(--border); padding-left: 20px;">
+        `;
+        
+        // Agrupar perguntas por condição (opção esperada)
+        const opcoesDaPrincipal = perguntaPrincipal.options || [];
+        const perguntasPorOpcao = {};
+        
+        // Inicializar array para cada opção
+        for (const opt of opcoesDaPrincipal) {
+            perguntasPorOpcao[opt] = [];
+        }
+        perguntasPorOpcao['*sem-condicao*'] = []; // Para perguntas sem condição
+        
+        // Distribuir as perguntas (exceto a principal)
+        for (let i = 0; i < formData.form.questions.length; i++) {
+            const q = formData.form.questions[i];
+            if (q.id === perguntaPrincipal.id) continue;
+            
+            if (q.condition && q.condition.dependsOn === perguntaPrincipal.id) {
+                const valorEsperado = q.condition.expectedValue;
+                if (perguntasPorOpcao[valorEsperado]) {
+                    perguntasPorOpcao[valorEsperado].push({ ...q, indice: i });
+                } else {
+                    perguntasPorOpcao['*sem-condicao*'].push({ ...q, indice: i });
+                }
+            } else {
+                perguntasPorOpcao['*sem-condicao*'].push({ ...q, indice: i });
+            }
+        }
+        
+        // Renderizar cada opção como um bloco COM A COR ESCOLHIDA
+        for (const opcao of opcoesDaPrincipal) {
+            const perguntasDoBloco = perguntasPorOpcao[opcao] || [];
+            const corBloco = opcaoCores[opcao] || '#f1f5f9';
+            
+            html += `
+                <div class="arvore-bloco" data-opcao="${escapeHtml(opcao)}" data-pergunta-mãe="${perguntaPrincipal.id}" style="margin-bottom: 20px; background: ${corBloco}; border-radius: 12px; padding: 12px; border-left: 5px solid ${corBloco};">
+                    <div class="arvore-bloco-header" style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: rgba(255,255,255,0.6); border-radius: 8px; margin-bottom: 10px;">
+                        <span class="drag-handle-bloco" draggable="true" data-opcao="${escapeHtml(opcao)}" data-tipo="bloco" style="cursor: grab; padding: 4px 8px; background: var(--bg-elev); border-radius: 6px;">⋮⋮</span>
+                        <span style="display: inline-block; width: 16px; height: 16px; border-radius: 4px; background: ${corBloco}; border: 2px solid rgba(0,0,0,0.15); flex-shrink: 0;"></span>
+                        <span style="font-weight: 600;">📍 ${escapeHtml(opcao)}</span>
+                        <span style="font-size: 11px; color: var(--text-muted);">(${perguntasDoBloco.length} perguntas)</span>
+                    </div>
+                    <div class="arvore-bloco-perguntas" style="margin-left: 12px;">
+            `;
+            
+            if (perguntasDoBloco.length === 0) {
+                html += `<div style="padding: 12px; color: var(--text-muted); font-style: italic; font-size: 13px; background: rgba(255,255,255,0.5); border-radius: 8px;">— Nenhuma pergunta vinculada a esta opção —</div>`;
+            } else {
+                for (const pergunta of perguntasDoBloco) {
+                    html += `
+                        <div class="arvore-pergunta" data-qid="${pergunta.id}" data-indice="${pergunta.indice}" data-opcao="${escapeHtml(opcao)}" style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin: 6px 0; background: rgba(255,255,255,0.8); border-radius: 8px; border: 1px solid rgba(0,0,0,0.08);">
+                            <span class="drag-handle-pergunta" draggable="true" data-qid="${pergunta.id}" data-tipo="pergunta" data-opcao-atual="${escapeHtml(opcao)}" style="cursor: grab; padding: 4px 8px; background: var(--bg-elev-2); border-radius: 6px;">⋮⋮</span>
+                            <span style="flex: 1;">❓ ${escapeHtml(pergunta.title)}</span>
+                            <span style="font-size: 11px; color: var(--text-muted); background: var(--bg); padding: 3px 8px; border-radius: 10px;">${pergunta.type === 'radio' ? 'Escolha' : pergunta.type === 'text' ? 'Texto' : pergunta.type === 'textarea' ? 'Texto longo' : pergunta.type === 'checkbox' ? 'Múltipla' : pergunta.type === 'select' ? 'Menu' : pergunta.type === 'scale' ? 'Nota 1-5' : pergunta.type === 'date' ? 'Data' : pergunta.type === 'time' ? 'Hora' : pergunta.type === 'info' ? 'Informativo' : pergunta.type}</span>
+                        </div>
+                    `;
+                }
+            }
+            
+            html += `
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Renderizar perguntas sem condição (órfãs)
+        const orfas = perguntasPorOpcao['*sem-condicao*'] || [];
+        if (orfas.length > 0) {
+            html += `
+                <div class="arvore-bloco" data-opcao="*sem-condicao*" style="margin-bottom: 20px; opacity: 0.8; background: #fefce8; border-radius: 12px; padding: 12px; border-left: 5px solid var(--warning);">
+                    <div class="arvore-bloco-header" style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: rgba(255,255,255,0.6); border-radius: 8px; margin-bottom: 10px;">
+                        <span style="font-weight: 600;">⚠️ Sem condição definida</span>
+                        <span style="font-size: 11px;">(não aparecem automaticamente)</span>
+                    </div>
+                    <div class="arvore-bloco-perguntas" style="margin-left: 12px;">
+            `;
+            for (const pergunta of orfas) {
+                html += `
+                    <div class="arvore-pergunta" data-qid="${pergunta.id}" data-indice="${pergunta.indice}" style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin: 6px 0; background: rgba(255,255,255,0.8); border-radius: 8px; border: 1px solid rgba(0,0,0,0.08);">
+                        <span class="drag-handle-pergunta" draggable="true" data-qid="${pergunta.id}" data-tipo="pergunta" data-opcao-atual="*sem-condicao*" style="cursor: grab; padding: 4px 8px; background: var(--bg-elev-2); border-radius: 6px;">⋮⋮</span>
+                        <span style="flex: 1;">❓ ${escapeHtml(pergunta.title)}</span>
+                        <span style="font-size: 11px; color: var(--warning);">(sem condição)</span>
+                    </div>
+                `;
+            }
+            html += `</div></div>`;
+        }
+        
+        html += `</div></div>`;
+    } else {
+        // Não há pergunta principal - mostrar todas em lista simples
+        html += `<div class="arvore-simples">`;
+        for (let i = 0; i < formData.form.questions.length; i++) {
+            const q = formData.form.questions[i];
+            html += `
+                <div class="arvore-pergunta" data-qid="${q.id}" data-indice="${i}" style="display: flex; align-items: center; gap: 8px; padding: 8px; margin: 4px 0; background: var(--bg); border-radius: 6px; border: 1px solid var(--border);">
+                    <span class="drag-handle-pergunta" draggable="true" data-qid="${q.id}" data-tipo="pergunta" style="cursor: grab; padding: 4px 8px; background: var(--bg-elev-2); border-radius: 6px;">⋮⋮</span>
+                    <span style="flex: 1;">❓ ${escapeHtml(q.title)}</span>
+                    <span style="font-size: 11px; color: var(--text-muted);">${q.type}</span>
+                </div>
+            `;
+        }
+        html += `</div>`;
+    }
+    
+    html += `</div>`;
+    container.innerHTML = html;
+    
+    // Configurar drag and drop na árvore
+    configurarDragDropArvore();
+}
+
+function configurarDragDropArvore() {
+    // Elementos arrastáveis
+    const draggables = document.querySelectorAll('.drag-handle-arvore, .drag-handle-bloco, .drag-handle-pergunta');
+    const dropTargets = document.querySelectorAll('.arvore-bloco, .arvore-bloco-perguntas, .arvore-pergunta');
+    
+    draggables.forEach(el => {
+        el.removeEventListener('dragstart', dragStartArvore);
+        el.removeEventListener('dragend', dragEndArvore);
+        el.addEventListener('dragstart', dragStartArvore);
+        el.addEventListener('dragend', dragEndArvore);
+        el.setAttribute('draggable', 'true');
+    });
+    
+    dropTargets.forEach(el => {
+        el.removeEventListener('dragover', dragOverArvore);
+        el.removeEventListener('dragleave', dragLeaveArvore);
+        el.removeEventListener('drop', dropArvore);
+        el.addEventListener('dragover', dragOverArvore);
+        el.addEventListener('dragleave', dragLeaveArvore);
+        el.addEventListener('drop', dropArvore);
+    });
+}
+
+let itemArrastadoArvore = null;
+
+function dragStartArvore(e) {
+    const target = e.target.closest('[draggable="true"]');
+    if (!target) return;
+    
+    itemArrastadoArvore = {
+        tipo: target.getAttribute('data-tipo'),
+        qid: target.getAttribute('data-qid'),
+        opcao: target.getAttribute('data-opcao'),
+        opcaoAtual: target.getAttribute('data-opcao-atual')
+    };
+    
+    e.dataTransfer.setData('text/plain', JSON.stringify(itemArrastadoArvore));
+    e.dataTransfer.effectAllowed = 'move';
+    target.style.opacity = '0.5';
+}
+
+function dragEndArvore(e) {
+    if (e.target) e.target.style.opacity = '';
+    itemArrastadoArvore = null;
+    document.querySelectorAll('.drag-over-arvore').forEach(el => {
+        el.classList.remove('drag-over-arvore');
+    });
+}
+
+function dragOverArvore(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const target = e.target.closest('.arvore-bloco, .arvore-bloco-perguntas, .arvore-pergunta');
+    if (target) {
+        target.classList.add('drag-over-arvore');
+    }
+}
+
+function dragLeaveArvore(e) {
+    const target = e.target.closest('.arvore-bloco, .arvore-bloco-perguntas, .arvore-pergunta');
+    if (target) {
+        target.classList.remove('drag-over-arvore');
+    }
+}
+
+async function dropArvore(e) {
+    e.preventDefault();
+    const target = e.target.closest('.arvore-bloco, .arvore-bloco-perguntas, .arvore-pergunta');
+    if (target) target.classList.remove('drag-over-arvore');
+    
+    if (!itemArrastadoArvore) return;
+    
+    const formData = getCurrentForm();
+    if (!formData) return;
+    
+    // Salvar estado para desfazer
+    salvarEstadoArvore();
+    
+    // Determinar destino
+    let destino = null;
+    let opcaoDestino = null;
+    let posicaoDestino = null;
+    
+    const blocoDestino = target.closest('.arvore-bloco');
+    if (blocoDestino) {
+        opcaoDestino = blocoDestino.getAttribute('data-opcao');
+    }
+    
+    const perguntaDestino = target.closest('.arvore-pergunta');
+    if (perguntaDestino) {
+        destino = perguntaDestino.getAttribute('data-qid');
+    }
+    
+    // Processar conforme o tipo do item arrastado
+    if (itemArrastadoArvore.tipo === 'pergunta') {
+        const perguntaId = itemArrastadoArvore.qid;
+        const pergunta = formData.form.questions.find(q => q.id === perguntaId);
+        
+        if (!pergunta) return;
+        
+        const opcaoAntiga = itemArrastadoArvore.opcaoAtual;
+        const opcaoNova = opcaoDestino;
+        
+        // Se mudou de bloco (opção)
+        if (opcaoAntiga !== opcaoNova && opcaoNova && opcaoNova !== '*sem-condicao*') {
+            // Perguntar antes de mudar a condição
+            const confirmar = confirm(`🔗 Mover pergunta "${pergunta.title}"\n\nDe: "${opcaoAntiga === '*sem-condicao*' ? 'Sem condição' : opcaoAntiga}"\nPara: "${opcaoNova}"\n\nA condição da pergunta será alterada.\n\nDeseja continuar?`);
+            
+            if (!confirmar) {
+                showToast('Movimento cancelado', 'info');
+                return;
+            }
+            
+            // Encontrar a pergunta principal
+            const perguntaPrincipal = formData.form.questions.find(q => q.type === 'radio' || q.type === 'select');
+            if (perguntaPrincipal) {
+                pergunta.condition = {
+                    dependsOn: perguntaPrincipal.id,
+                    expectedValue: opcaoNova
+                };
+                showToast(`✅ Pergunta movida para "${opcaoNova}"`, 'success');
+            } else {
+                showToast('❌ Não foi possível definir condição: nenhuma pergunta do tipo múltipla escolha encontrada', 'error');
+            }
+        } else if (opcaoNova === '*sem-condicao*') {
+            // Remover condição
+            const confirmar = confirm(`🔓 Remover condição da pergunta "${pergunta.title}"?\n\nEla passará a aparecer sempre (sem depender de nenhuma opção).`);
+            if (confirmar) {
+                pergunta.condition = null;
+                showToast('✅ Condição removida', 'success');
+            }
+        }
+        
+        // Reordenar perguntas (movendo dentro do mesmo bloco)
+        if (destino && destino !== perguntaId) {
+            const indiceOrigem = formData.form.questions.findIndex(q => q.id === perguntaId);
+            const indiceDestino = formData.form.questions.findIndex(q => q.id === destino);
+            
+            if (indiceOrigem !== -1 && indiceDestino !== -1) {
+                const [movida] = formData.form.questions.splice(indiceOrigem, 1);
+                const novoIndice = indiceOrigem < indiceDestino ? indiceDestino - 1 : indiceDestino;
+                formData.form.questions.splice(novoIndice, 0, movida);
+                showToast('📋 Ordem atualizada', 'success');
+            }
+        }
+        
+    } else if (itemArrastadoArvore.tipo === 'bloco') {
+        // Mover bloco inteiro (todas perguntas daquela opção)
+        const opcaoBloco = itemArrastadoArvore.opcao;
+        const opcaoDestinoBloco = opcaoDestino;
+        
+        if (opcaoBloco && opcaoDestinoBloco && opcaoBloco !== opcaoDestinoBloco) {
+            const confirmar = confirm(`📦 Mover TODO o bloco "${opcaoBloco}"\n\nIsso moverá todas as perguntas deste bloco para depois do bloco "${opcaoDestinoBloco}".\n\nDeseja continuar?`);
+            
+            if (confirmar) {
+                // Reordenar os blocos = reordenar as perguntas pela posição da primeira pergunta de cada bloco
+                // Esta é uma operação mais complexa que será implementada em uma segunda versão
+                showToast('⚠️ Movimento de blocos ainda em desenvolvimento. Use o movimento individual de perguntas por enquanto.', 'info');
+            }
+        }
+    }
+    
+    // Salvar e recarregar
+    saveData();
+    renderizarArvore();
+    renderQuestionsList();
+    renderLivePreview();
+    
+    // Atualizar cabeçalho da aba
+    atualizarCabecalhoAba(formData.id);
+}
+
+function organizarBlocosPorCondicao() {
+    const formData = getCurrentForm();
+    if (!formData) return;
+    
+    const perguntas = formData.form.questions;
+    
+    // Salvar estado para desfazer
+    salvarEstadoArvore();
+    
+    // Encontrar a pergunta principal (primeira sem condição ou do tipo radio/select)
+    let perguntaPrincipal = null;
+    let indicePrincipal = -1;
+    
+    for (let i = 0; i < perguntas.length; i++) {
+        const q = perguntas[i];
+        if ((!q.condition || !q.condition.dependsOn) && (q.type === 'radio' || q.type === 'select')) {
+            perguntaPrincipal = q;
+            indicePrincipal = i;
+            break;
+        }
+    }
+    
+    if (!perguntaPrincipal) {
+        showToast('❌ Nenhuma pergunta principal (múltipla escolha) encontrada para organizar', 'error');
+        return;
+    }
+    
+    const opcoes = perguntaPrincipal.options || [];
+    const novasPerguntas = [perguntaPrincipal];
+    
+    // Para cada opção, adicionar as perguntas que dependem dela
+    for (const opcao of opcoes) {
+        const perguntasDaOpcao = perguntas.filter(q => {
+            return q.id !== perguntaPrincipal.id && 
+                   q.condition && 
+                   q.condition.dependsOn === perguntaPrincipal.id && 
+                   q.condition.expectedValue === opcao;
+        });
+        novasPerguntas.push(...perguntasDaOpcao);
+    }
+    
+    // Adicionar as demais perguntas (sem condição ou de outras condicionais)
+    const outrasPerguntas = perguntas.filter(q => {
+        if (q.id === perguntaPrincipal.id) return false;
+        if (q.condition && q.condition.dependsOn === perguntaPrincipal.id) return false;
+        return true;
+    });
+    novasPerguntas.push(...outrasPerguntas);
+    
+    formData.form.questions = novasPerguntas;
+    saveData();
+    
+    renderizarArvore();
+    renderQuestionsList();
+    renderLivePreview();
+    
+    showToast('✅ Formulário organizado por blocos!', 'success');
+}
+
+function fecharEditorTabArvore() {
+    // Voltar para a aba Perguntas
+    showEditorTab('perguntas');
+}
+
+// Sobrescrever a função showEditorTab para suportar a nova aba
+const showEditorTabOriginal = showEditorTab;
+window.showEditorTab = function(tab) {
+    if (showEditorTabOriginal) showEditorTabOriginal(tab);
+    if (tab === 'arvore') {
+        renderizarArvore();
+    }
+};
 
 // Iniciar
 iniciarApp();
@@ -4070,6 +5588,404 @@ function atualizarBannerAppPorLink() {
         showToast('✅ Banner do app atualizado via link! Clique em "Salvar" para confirmar.', 'success');
     }
 }
+
+// Inicializar escalas no modo público (após renderizar)
+function initPublicScales() {
+    setTimeout(() => {
+        document.querySelectorAll('.scale-container').forEach(container => {
+            const radios = container.querySelectorAll('input[type="radio"]');
+            const labels = container.querySelectorAll('.scale-option');
+            
+            labels.forEach((label, index) => {
+                label.removeEventListener('click', scaleClickHandler);
+                label.addEventListener('click', scaleClickHandler);
+            });
+            
+            function scaleClickHandler(e) {
+                const label = e.currentTarget;
+                const radio = label.querySelector('input[type="radio"]');
+                if (radio) {
+                    radio.checked = true;
+                    // Resetar todos os estilos
+                    labels.forEach(l => {
+                        l.style.background = 'var(--bg)';
+                        l.style.borderColor = 'var(--border)';
+                    });
+                    // Destacar o selecionado
+                    label.style.background = 'var(--primary-light)';
+                    label.style.borderColor = 'var(--primary)';
+                    
+                    // Disparar evento change para condições
+                    const changeEvent = new Event('change', { bubbles: true });
+                    radio.dispatchEvent(changeEvent);
+                }
+            }
+        });
+    }, 50);
+}
+
+// ==================== FUNÇÃO TRAVAR/DESTRAVAR FORMULÁRIO ====================
+async function toggleLockForm(formId) {
+    const form = forms.find(f => f.id === formId);
+    if (!form) return;
+    
+    // Se já está travado, precisa de senha para destravar
+    if (form.locked) {
+        const senha = prompt("🔐 Digite a senha do responsável para DESTRAVAR este formulário:");
+        if (!senha) return;
+        
+        // Buscar a senha correta da configuração do app
+        const url = `${CONFIG.googleApiUrl}?acao=carregarConfigApp`;
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        let senhaCorreta = "";
+        if (result.status === 'sucesso' && result.dados) {
+            const config = {};
+            result.dados.forEach(item => { config[item.chave] = item.valor; });
+            senhaCorreta = config.senha_responsavel || "";
+        }
+        
+        if (senha !== senhaCorreta) {
+            showToast("❌ Senha incorreta! Não foi possível destravar.", "error");
+            return;
+        }
+        
+        form.locked = false;
+        showToast(`🔓 Formulário "${form.name}" DESTRAVADO!`, "success");
+    } else {
+        // Está destravado -> qualquer um pode travar (sem senha)
+        form.locked = true;
+        showToast(`🔒 Formulário "${form.name}" TRAVADO!`, "success");
+    }
+    
+    saveData();
+    await salvarNaNuvem('forms', form.id, form);
+    renderFormsList();
+}
+
+// ==================== SETORES ====================
+
+// ==================== VINCULAR PERGUNTA A SETORES ====================
+
+// Alternar visibilidade do seletor de setores
+function toggleSectorLink(questionId, checked) {
+    const formData = getCurrentForm();
+    if (!formData) return;
+    
+    const question = formData.form.questions.find(q => q.id === questionId);
+    if (!question) return;
+    
+    question.linkedToSectors = checked;
+    
+    if (checked) {
+        // Inicializar com setores salvos ou todos os setores ativos
+        if (!question.sectorIds || question.sectorIds.length === 0) {
+            const setores = formData.form.setores || [];
+            const setoresAtivos = setores.filter(s => s.ativo !== false);
+            question.sectorIds = setoresAtivos.map(s => s.setor);
+        }
+        // Se não tiver setores, tenta carregar
+        if (!question.sectorIds || question.sectorIds.length === 0) {
+            carregarSetoresParaPergunta(questionId);
+        }
+    } else {
+        question.sectorIds = [];
+        question.options = ['Opção 1', 'Opção 2'];
+        question.maxSelections = 0;
+    }
+    
+    saveData();
+    renderQuestionsList();
+    renderLivePreview();
+}
+
+// Carregar setores para uma pergunta específica
+async function carregarSetoresParaPergunta(questionId) {
+    const formData = getCurrentForm();
+    if (!formData) return;
+    
+    const question = formData.form.questions.find(q => q.id === questionId);
+    if (!question) return;
+    
+    // Buscar setores do formData
+    const setores = formData.form.setores || [];
+    const setoresAtivos = setores.filter(s => s.ativo !== false);
+    
+    // Se não tiver setores salvos localmente, buscar da nuvem
+    if (setoresAtivos.length === 0) {
+        try {
+            const url = `${CONFIG.googleApiUrl}?acao=carregarSetores&nomeFormulario=${encodeURIComponent(formData.name)}`;
+            const response = await fetch(url);
+            const result = await response.json();
+            
+            if (result.status === 'sucesso' && result.setores) {
+                const setoresNuvem = result.setores.filter(s => s.ativo !== false);
+                if (setoresNuvem.length > 0) {
+                    question.sectorIds = setoresNuvem.map(s => s.setor);
+                    formData.form.setores = result.setores;
+                    saveData();
+                }
+            }
+        } catch(e) {
+            console.error('Erro ao buscar setores:', e);
+        }
+    } else {
+        // Usar os setores locais
+        if (!question.sectorIds || question.sectorIds.length === 0) {
+            question.sectorIds = setoresAtivos.map(s => s.setor);
+        }
+    }
+    
+    // Atualizar as opções da pergunta
+    question.options = question.sectorIds || [];
+    saveData();
+    renderQuestionsList();
+}
+
+// Renderizar os checkboxes de seleção de setores
+function renderSectorSelector(questionId) {
+    const container = document.getElementById(`sector-options-${questionId}`);
+    if (!container) return;
+    
+    const formData = getCurrentForm();
+    if (!formData) return;
+    
+    const question = formData.form.questions.find(q => q.id === questionId);
+    if (!question) return;
+    
+    const setores = formData.form.setores || [];
+    const setoresAtivos = setores.filter(s => s.ativo !== false);
+    
+    // Se não tiver setores configurados, mostrar mensagem
+    if (setoresAtivos.length === 0) {
+        container.innerHTML = `
+            <div style="color: var(--text-muted); font-size: 13px; padding: 8px; text-align: center; background: var(--bg); border-radius: 8px;">
+                ℹ️ Nenhum setor configurado. Vá na aba "Aparência" para configurar.
+            </div>
+        `;
+        return;
+    }
+    
+    // Criar checkbox para cada setor
+    const sectorIds = question.sectorIds || [];
+    
+    container.innerHTML = setoresAtivos.map(s => `
+        <label style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; cursor: pointer; border-radius: 6px; hover:background: var(--bg);">
+            <input type="checkbox" ${sectorIds.includes(s.setor) ? 'checked' : ''} 
+                   onchange="toggleSectorInQuestion('${questionId}', '${escapeHtml(s.setor)}', this.checked)">
+            <span>${escapeHtml(s.setor)}</span>
+            <span style="font-size: 11px; color: var(--text-muted); margin-left: auto;">${escapeHtml(s.email)}</span>
+        </label>
+    `).join('');
+}
+
+// Adicionar/remover setor da pergunta
+function toggleSectorInQuestion(questionId, sectorName, checked) {
+    const formData = getCurrentForm();
+    if (!formData) return;
+    
+    const question = formData.form.questions.find(q => q.id === questionId);
+    if (!question) return;
+    
+    if (!question.sectorIds) question.sectorIds = [];
+    
+    if (checked) {
+        if (!question.sectorIds.includes(sectorName)) {
+            question.sectorIds.push(sectorName);
+        }
+    } else {
+        question.sectorIds = question.sectorIds.filter(s => s !== sectorName);
+    }
+    
+    // Atualizar as opções da pergunta
+    question.options = question.sectorIds || [];
+    saveData();
+    renderLivePreview();
+}
+
+// Modificar a função renderQuestionsList para incluir o seletor de setores
+// (vamos sobrescrever a função existente)
+
+// Adicionar uma nova linha de setor
+function adicionarSetor() {
+    const container = document.getElementById('setores-container');
+    if (!container) return;
+    
+    const index = container.querySelectorAll('.setor-row').length;
+    
+    const row = document.createElement('div');
+    row.className = 'setor-row';
+    row.style.cssText = 'display: flex; gap: 8px; margin-bottom: 8px; align-items: center; flex-wrap: wrap;';
+    row.innerHTML = `
+        <input type="text" class="input setor-nome" placeholder="Nome do setor" style="flex: 2; min-width: 120px;">
+        <input type="email" class="input setor-email" placeholder="E-mail do setor" style="flex: 3; min-width: 180px;">
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap;">
+            <input type="checkbox" class="setor-ativo" checked> Ativo
+        </label>
+        <button class="btn btn-sm btn-danger" onclick="removerSetor(this)" style="padding: 8px 12px;">✕</button>
+    `;
+    container.appendChild(row);
+}
+
+// Remover um setor
+function removerSetor(btn) {
+    const row = btn.closest('.setor-row');
+    if (row) row.remove();
+}
+
+// Remover todos os setores
+function removerTodosSetores() {
+    const container = document.getElementById('setores-container');
+    if (!container) return;
+    if (container.querySelectorAll('.setor-row').length === 0) return;
+    
+    if (confirm('🗑️ Remover TODOS os setores?')) {
+        container.innerHTML = '';
+        showToast('Todos os setores removidos', 'info');
+    }
+}
+
+// Carregar setores do formulário atual
+async function carregarSetoresConfig() {
+    const formData = getCurrentForm();
+    if (!formData) return;
+    
+    const container = document.getElementById('setores-container');
+    if (!container) return;
+    
+    // Limpar container
+    container.innerHTML = '';
+    
+    // Buscar setores do formData (local)
+    const setores = formData.form.setores || [];
+    const maxSelecoes = formData.form.maxSelecoes || 0;
+    
+    // Atualizar campo de máximo de seleções
+    const maxInput = document.getElementById('form-max-setores');
+    if (maxInput) maxInput.value = maxSelecoes;
+    
+    if (setores.length === 0) {
+        // Adicionar 3 linhas vazias como exemplo
+        for (let i = 0; i < 3; i++) {
+            adicionarSetor();
+        }
+        return;
+    }
+    
+    // Preencher com os setores salvos
+    for (const setor of setores) {
+        const row = document.createElement('div');
+        row.className = 'setor-row';
+        row.style.cssText = 'display: flex; gap: 8px; margin-bottom: 8px; align-items: center; flex-wrap: wrap;';
+        row.innerHTML = `
+            <input type="text" class="input setor-nome" value="${escapeHtml(setor.setor)}" placeholder="Nome do setor" style="flex: 2; min-width: 120px;">
+            <input type="email" class="input setor-email" value="${escapeHtml(setor.email)}" placeholder="E-mail do setor" style="flex: 3; min-width: 180px;">
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap;">
+                <input type="checkbox" class="setor-ativo" ${setor.ativo !== false ? 'checked' : ''}> Ativo
+            </label>
+            <button class="btn btn-sm btn-danger" onclick="removerSetor(this)" style="padding: 8px 12px;">✕</button>
+        `;
+        container.appendChild(row);
+    }
+}
+
+// Salvar configuração de setores
+async function salvarSetoresConfig() {
+    const formData = getCurrentForm();
+    if (!formData) return;
+    
+    const container = document.getElementById('setores-container');
+    const rows = container.querySelectorAll('.setor-row');
+    const setores = [];
+    let temErro = false;
+    
+    // Pegar o máximo de seleções
+    const maxInput = document.getElementById('form-max-setores');
+    const maxSelecoes = parseInt(maxInput.value) || 0;
+    
+    for (const row of rows) {
+        const nome = row.querySelector('.setor-nome').value.trim();
+        const email = row.querySelector('.setor-email').value.trim();
+        const ativo = row.querySelector('.setor-ativo').checked;
+        
+        // Pular linhas vazias
+        if (!nome && !email) continue;
+        
+        if (!nome) {
+            showToast('❌ Preencha o nome de todos os setores', 'error');
+            temErro = true;
+            break;
+        }
+        
+        if (!email) {
+            showToast(`❌ Preencha o e-mail do setor "${nome}"`, 'error');
+            temErro = true;
+            break;
+        }
+        
+        if (!email.includes('@')) {
+            showToast(`❌ E-mail inválido para o setor "${nome}": ${email}`, 'error');
+            temErro = true;
+            break;
+        }
+        
+        setores.push({ 
+            setor: nome, 
+            email: email,
+            ativo: ativo
+        });
+    }
+    
+    if (temErro) return;
+    
+// Permite salvar com 0 setores (apagar todos)
+if (setores.length === 0) {
+    // Se não houver setores, só limpa a planilha
+    if (!confirm('⚠️ Você está removendo TODOS os setores. Deseja continuar?')) {
+        return;
+    }
+    // Continua para salvar vazio  
+}
+    
+    // Salvar no formData (local)
+    formData.form.setores = setores;
+    formData.form.maxSelecoes = maxSelecoes;
+    saveData();
+    
+    // Salvar na nuvem (Google Sheets)
+    const btn = event?.currentTarget || document.querySelector('#editor-criativos .btn-primary');
+    if (btn) {
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span> Salvando...';
+        
+        try {
+            // Salvar na aba 'setores_' + nomeFormulario
+            const url = `${CONFIG.googleApiUrl}?acao=salvarSetores&nomeFormulario=${encodeURIComponent(formData.name)}&setores=${encodeURIComponent(JSON.stringify(setores))}&maxSelecoes=${maxSelecoes}`;
+            const response = await fetch(url);
+            const result = await response.json();
+            
+            console.log('📦 Resposta salvarSetores:', result);
+            
+            if (result.status === 'sucesso') {
+                showToast(`✅ ${setores.length} setores salvos com sucesso!`, 'success');
+                createConfetti();
+            } else {
+                showToast('❌ Erro ao salvar setores: ' + (result.mensagem || 'Erro desconhecido'), 'error');
+            }
+        } catch (erro) {
+            console.error('❌ Erro ao salvar setores:', erro);
+            showToast('❌ Erro de conexão: ' + erro.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    }
+}
+
+// Sobrescrever a função openFormEditor para carregar setores
+// (já existe, vamos adicionar a chamada no final)
 
 </script>
 </body>
