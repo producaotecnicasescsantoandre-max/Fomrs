@@ -127,6 +127,33 @@ body {
   cursor: not-allowed;
   transform: none;
 }
+
+.scale-container {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.scale-option {
+    flex: 1;
+    text-align: center;
+    padding: 12px;
+    background: var(--bg);
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 600;
+}
+.scale-option:hover {
+    background: var(--primary-light);
+    border-color: var(--primary);
+}
+.scale-option.selected {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+}
+
 </style>
 </head>
 <body>
@@ -235,6 +262,29 @@ async function buscarFormulario(formId) {
   }
 }
 
+// 🆕 ADICIONAR ESTA FUNÇÃO AQUI (depois de buscarFormulario)
+// ==================== BUSCAR SETORES ====================
+async function buscarSetores(nomeFormulario) {
+  try {
+    const url = `${SHEETS_URL}?acao=carregarSetores&nomeFormulario=${encodeURIComponent(nomeFormulario)}`;
+    console.log('🔍 Buscando setores:', url);
+    const response = await fetch(url);
+    const result = await response.json();
+    console.log('📦 Setores recebidos:', result);
+    
+    if (result.status === 'sucesso') {
+      return {
+        setores: result.setores || [],
+        maxSelecoes: result.maxSelecoes || 0
+      };
+    }
+    return { setores: [], maxSelecoes: 0 };
+  } catch (e) {
+    console.error('Erro ao buscar setores:', e);
+    return { setores: [], maxSelecoes: 0 };
+  }
+}
+
 // ==================== SALVAR RESPOSTA ====================
 async function salvarResposta(formId, nomeFormulario, perguntas, respostas) {
     try {
@@ -276,7 +326,7 @@ function renderizarFormulario(form) {
   const f = form.form;
   const container = document.getElementById('content');
   
-container.innerHTML = `
+  container.innerHTML = `
     <div class="card">
       ${f.banner ? `<div class="banner-preview"><img src="${f.banner}" alt="Banner"></div>` : ''}
       
@@ -302,12 +352,16 @@ container.innerHTML = `
     </div>
   `;
   
-  renderizarPerguntas(form);
+  // 🔥 CARREGA SETORES ANTES DE RENDERIZAR
+  carregarSetoresParaFormulario(form);
 }
 
 function renderizarPerguntas(form) {
   const container = document.getElementById('perguntas-container');
   const questions = form.form.questions || [];
+  
+  // 🔥 GUARDA O NOME DO FORMULÁRIO
+  container.setAttribute('data-form-name', form.name);
   
   container.innerHTML = questions.map((q, idx) => `
     <div class="form-group" data-qid="${q.id}" data-condition='${JSON.stringify(q.condition || null)}'>
@@ -324,7 +378,24 @@ function renderizarInput(q, idx) {
   const name = `resp_${q.id}`;
   const id = `campo_${q.id}`;
   
+  // 🔥 VERIFICA SE É PERGUNTA DE SETOR
+  let opcoesParaExibir = q.options || [];
+  if (q.linkedToSectors && q.sectorIds && q.sectorIds.length > 0) {
+    opcoesParaExibir = q.sectorIds;
+  }
+  
   switch(q.type) {
+case 'info': return `
+    <div class="info-card" style="background: linear-gradient(135deg, var(--primary-light) 0%, var(--bg-elev) 100%); border-left: 4px solid var(--primary); border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+            <span style="font-size: 28px;">ℹ️</span>
+            <h3 style="color: var(--primary); margin: 0; font-size: 18px;">Informação importante</h3>
+        </div>
+        <div class="info-content" style="color: var(--text); line-height: 1.6; font-size: 14px;">
+            ${formatarInformativo(q.infoContent || 'Nenhuma informação disponível')}
+        </div>
+    </div>
+`;
     case 'text': return `<input type="text" class="input" name="${name}" id="${id}" style="width:100%; padding: 14px; font-size: 16px;">`;
     case 'email': return `<input type="email" class="input" name="${name}" id="${id}" style="width:100%; padding: 14px; font-size: 16px;">`;
     case 'number': return `<input type="number" class="input" name="${name}" id="${id}" style="width:100%; padding: 14px; font-size: 16px;">`;
@@ -334,27 +405,37 @@ case 'textarea': return `
         🔤 Limite: 2000 caracteres
     </div>
 `;
-    case 'radio': return `<div class="radio-group" id="${id}">${(q.options||[]).map(opt => `
-      <label class="radio-option" style="display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; cursor: pointer;">
-        <input type="radio" name="${name}" value="${escapeHtml(opt)}"> 
-        <span>${escapeHtml(opt)}</span>
-      </label>
-    `).join('')}</div>`;
-    case 'checkbox': return `<div class="checkbox-group" id="${id}">${(q.options||[]).map(opt => `
+case 'radio': return `<div class="radio-group" id="${id}">${(opcoesParaExibir || []).map(opt => `
+  <label class="radio-option" style="display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; cursor: pointer;">
+    <input type="radio" name="${name}" value="${escapeHtml(opt)}"> 
+    <span>${escapeHtml(opt)}</span>
+  </label>
+`).join('')}</div>`;
+case 'checkbox': return `
+  <div class="checkbox-group" id="${id}" data-max="${q.maxSelections || 0}">
+    ${(opcoesParaExibir || []).map(opt => `
       <label class="checkbox-option" style="display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; cursor: pointer;">
-        <input type="checkbox" name="${name}" value="${escapeHtml(opt)}"> 
+        <input type="checkbox" name="${name}" value="${escapeHtml(opt)}" onclick="limitarCheckbox(this)"> 
         <span>${escapeHtml(opt)}</span>
       </label>
-    `).join('')}</div>`;
-    case 'select': return `<select class="select" name="${name}" id="${id}" style="width:100%; padding: 14px;">
-      <option value="">Selecione...</option>
-      ${(q.options||[]).map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
-    </select>`;
-    case 'scale': return `<div style="display: flex; gap: 8px; flex-wrap: wrap;" id="${id}">${[1,2,3,4,5].map(n => `
-      <label style="flex: 1; text-align: center; padding: 12px; background: var(--bg); border-radius: 10px; border: 1px solid var(--border); cursor: pointer;">
-        <input type="radio" name="${name}" value="${n}" style="display: none;"> ${n}
-      </label>
-    `).join('')}</div>`;
+    `).join('')}
+  </div>
+  ${(q.maxSelections && q.maxSelections > 0) ? `<div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">⚠️ Máximo de ${q.maxSelections} opção(ões)</div>` : ''}
+`;
+case 'select': return `<select class="select" name="${name}" id="${id}" style="width:100%; padding: 14px;">
+  <option value="">Selecione...</option>
+  ${(opcoesParaExibir || []).map(opt => `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`).join('')}
+</select>`;
+case 'scale': return `
+    <div class="scale-container" data-name="${name}" data-qid="${q.id}">
+        ${[1,2,3,4,5].map(n => `
+            <div class="scale-option" data-value="${n}" onclick="selecionarEscala(this, '${name}', '${n}')">
+                ${n}
+                <input type="radio" name="${name}" value="${n}" style="display: none;">
+            </div>
+        `).join('')}
+    </div>
+`;
     case 'date': return `<input type="date" class="input" name="${name}" id="${id}" style="width:100%; padding: 14px;">`;
     case 'time': return `<input type="time" class="input" name="${name}" id="${id}" style="width:100%; padding: 14px;">`;
     case 'attachment': return `
@@ -439,6 +520,64 @@ function aplicarCondicoes(form) {
   });
   
   atualizarVisibilidade();
+}
+
+// ==================== CARREGAR SETORES E ADICIONAR PERGUNTA ====================
+async function carregarSetoresEAdicionarPergunta(form) {
+  try {
+    const resultado = await buscarSetores(form.name);
+    
+    if (!resultado.setores || resultado.setores.length === 0) {
+      console.log('ℹ️ Nenhum setor configurado para este formulário');
+      return;
+    }
+    
+    // Filtrar apenas setores ativos
+    const setoresAtivos = resultado.setores.filter(s => s.ativo !== false);
+    
+    if (setoresAtivos.length === 0) {
+      console.log('ℹ️ Nenhum setor ativo encontrado');
+      return;
+    }
+    
+    const maxSelecoes = resultado.maxSelecoes || 0;
+    
+    // Verificar se já existe uma pergunta de setor
+    const perguntaSetorExistente = form.form.questions.some(q => 
+      q.title && (q.title.toLowerCase().includes('setor') || 
+                  q.title.toLowerCase().includes('departamento') ||
+                  q.title.toLowerCase().includes('área') ||
+                  q.title.toLowerCase().includes('area'))
+    );
+    
+    if (perguntaSetorExistente) {
+      console.log('ℹ️ Já existe uma pergunta de setor no formulário');
+      return;
+    }
+    
+    // Criar pergunta de setor
+    const perguntaSetor = {
+      id: generateId(),
+      type: 'checkbox',
+      title: '🏢 Qual(is) setor(es) você pertence?',
+      required: false,
+      options: setoresAtivos.map(s => s.setor),
+      maxSelections: maxSelecoes,
+      isSetorQuestion: true,
+      condition: null
+    };
+    
+    // Adicionar no início das perguntas
+    form.form.questions.unshift(perguntaSetor);
+    
+    // Re-renderizar as perguntas
+    renderizarPerguntas(form);
+    
+    console.log(`✅ Pergunta de setor adicionada com ${setoresAtivos.length} opções, max: ${maxSelecoes}`);
+    
+  } catch (erro) {
+    console.error('❌ Erro ao carregar setores:', erro);
+  }
 }
 
 // ==================== ENVIAR RESPOSTA ====================
@@ -650,6 +789,7 @@ async function enviarEmailComAnexos(nomeFormulario, resposta, perguntas) {
         const perguntasRespostas = {};
         for (const q of perguntas) {
             const valor = resposta.data[q.id] || '';
+            // ✅ CORRETO - Envia o título puro (o script adiciona o <b>)
             perguntasRespostas[q.title] = valor;
         }
         
@@ -674,6 +814,111 @@ async function enviarEmailComAnexos(nomeFormulario, resposta, perguntas) {
     } catch (erro) {
         console.error('❌ Erro ao enviar e-mail:', erro);
     }
+}
+
+function formatarInformativo(texto) {
+    if (!texto) return '';
+    
+    // Escapar HTML para segurança, mas preservar a formatação que vamos adicionar
+    let textoEscapado = escapeHtml(texto);
+    
+    // Converter **texto** para <strong>texto</strong>
+    textoEscapado = textoEscapado.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // Converter *texto* para <em>texto</em>
+    textoEscapado = textoEscapado.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    
+    // Converter listas com marcadores - (hífen espaço)
+    textoEscapado = textoEscapado.replace(/^• (.*?)$/gm, '<li>$1</li>');
+    textoEscapado = textoEscapado.replace(/^- (.*?)$/gm, '<li>$1</li>');
+    
+    // Agrupar <li> em <ul>
+    if (textoEscapado.includes('<li>')) {
+        textoEscapado = textoEscapado.replace(/<li>.*?<\/li>/gs, (match) => {
+            return `<ul style="margin: 10px 0 10px 20px; list-style-type: disc;">${match}</ul>`;
+        });
+    }
+    
+    // Converter quebras de linha para <br>
+    textoEscapado = textoEscapado.replace(/\n/g, '<br>');
+    
+    return textoEscapado;
+}
+
+function selecionarEscala(elemento, nomeCampo, valor) {
+    const container = elemento.closest('.scale-container');
+    const todasOpcoes = container.querySelectorAll('.scale-option');
+    
+    todasOpcoes.forEach(opt => {
+        opt.classList.remove('selected');
+        opt.style.background = 'var(--bg)';
+        opt.style.borderColor = 'var(--border)';
+        opt.style.color = 'var(--text)';
+    });
+    
+    elemento.classList.add('selected');
+    elemento.style.background = 'var(--primary)';
+    elemento.style.borderColor = 'var(--primary)';
+    elemento.style.color = 'white';
+    
+    const radio = elemento.querySelector('input[type="radio"]');
+    if (radio) {
+        radio.checked = true;
+        const changeEvent = new Event('change', { bubbles: true });
+        radio.dispatchEvent(changeEvent);
+    }
+}
+
+function limitarCheckbox(checkboxClicado) {
+    const grupo = checkboxClicado.closest('.checkbox-group');
+    const maxSelecoes = parseInt(grupo.getAttribute('data-max')) || 0;
+    
+    if (maxSelecoes === 0) return;
+    
+    const todosCheckboxes = grupo.querySelectorAll('input[type="checkbox"]');
+    let marcados = 0;
+    todosCheckboxes.forEach(cb => {
+        if (cb.checked) marcados++;
+    });
+    
+    if (marcados > maxSelecoes) {
+        checkboxClicado.checked = false;
+        alert(`⚠️ Você só pode selecionar até ${maxSelecoes} opção(ões).`);
+    }
+}
+
+// ==================== CARREGAR SETORES PARA FORMULÁRIO ====================
+async function carregarSetoresParaFormulario(form) {
+  try {
+    const resultado = await buscarSetores(form.name);
+    
+    if (!resultado.setores || resultado.setores.length === 0) {
+      renderizarPerguntas(form);
+      return;
+    }
+    
+    const setoresAtivos = resultado.setores.filter(s => s.ativo !== false);
+    const nomesSetores = setoresAtivos.map(s => s.setor);
+    
+    let atualizou = false;
+    for (const q of form.form.questions) {
+      if (q.linkedToSectors) {
+        q.options = nomesSetores;
+        q.sectorIds = nomesSetores;
+        atualizou = true;
+      }
+    }
+    
+    renderizarPerguntas(form);
+    
+    if (atualizou) {
+      console.log(`✅ ${nomesSetores.length} setores carregados para ${form.name}`);
+    }
+    
+  } catch (erro) {
+    console.error('❌ Erro ao carregar setores:', erro);
+    renderizarPerguntas(form);
+  }
 }
 
 init();
